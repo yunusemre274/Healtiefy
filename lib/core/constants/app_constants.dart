@@ -6,47 +6,80 @@ class AppConstants {
   // API Endpoints
   static const String baseUrl = 'https://api.healtiefy.com';
 
-  // Spotify
-  static const String spotifyClientId = 'YOUR_SPOTIFY_CLIENT_ID';
-  static const String spotifyClientSecret = 'YOUR_SPOTIFY_CLIENT_SECRET';
-  static const String spotifyRedirectUri = 'healtiefy://spotify-callback';
-  static const String spotifyScopes =
-      'user-read-playback-state user-modify-playback-state user-read-currently-playing playlist-read-private playlist-read-collaborative';
+  // Spotify OAuth Configuration
+  static const String spotifyClientId = 'b2dbc08c99984f2cbd7405bfba25133a';
+  static const String spotifyRedirectUri = 'healtiefy://callback';
+  static const String spotifyAuthUrl = 'https://accounts.spotify.com/authorize';
+  static const String spotifyTokenUrl =
+      'https://accounts.spotify.com/api/token';
+  static const String spotifyApiBaseUrl = 'https://api.spotify.com/v1';
+  static const List<String> spotifyScopes = [
+    'playlist-read-private',
+    'user-read-email',
+    'user-library-read',
+    'user-read-playback-state',
+    'user-modify-playback-state',
+    'user-read-currently-playing',
+  ];
 
-  // Google Maps
-  static const String googleMapsApiKey = 'YOUR_GOOGLE_MAPS_API_KEY';
+  // Google Maps API Key
+  static const String googleMapsApiKey =
+      'AIzaSyB8WiIWZAhGHfN1WguWqFcbhtqOUQDshcQ';
 
-  // Firebase
-  static const String firebaseProjectId = 'YOUR_FIREBASE_PROJECT_ID';
+  // Firebase Collections
+  static const String usersCollection = 'users';
+  static const String sessionsCollection = 'sessions';
+  static const String citiesCollection = 'cities';
+  static const String buildingsCollection = 'buildings';
 
   // Default Values
   static const int defaultStepGoal = 10000;
   static const double defaultWaterGoal = 2.5; // liters
   static const int defaultCalorieGoal = 2000;
+  static const double defaultHeight = 170.0; // cm
+  static const double defaultWeight = 70.0; // kg
 
   // Health Calculations
-  static const double caloriesPerStep =
-      0.04; // average calories burned per step
-  static const double fatPerCalorie =
-      0.00013; // grams of fat burned per calorie
-  static const double stepsPerKm = 1312.0; // average steps per kilometer
+  static const double caloriesPerStep = 0.04;
+  static const double fatPerCalorie = 0.00013;
+  static const double stepsPerKm = 1312.0;
 
-  // Storage Keys
+  // Secure Storage Keys
+  static const String spotifyAccessTokenKey = 'spotify_access_token';
+  static const String spotifyRefreshTokenKey = 'spotify_refresh_token';
+  static const String spotifyExpiresAtKey = 'spotify_expires_at';
+  static const String spotifyCodeVerifierKey = 'spotify_code_verifier';
+
+  // Local Storage Keys
   static const String userKey = 'user_data';
+  static const String currentUserKey = 'current_user';
   static const String sessionsKey = 'sessions_data';
   static const String cityZonesKey = 'city_zones_data';
   static const String buildingsKey = 'buildings_data';
-  static const String spotifyTokenKey = 'spotify_token';
   static const String isFirstLaunchKey = 'is_first_launch';
   static const String hasLocationPermissionKey = 'has_location_permission';
+  static const String lastSyncKey = 'last_sync_timestamp';
+  static const String currentStreakKey = 'current_streak';
+  static const String lastActivityDateKey = 'last_activity_date';
+  static const String darkModeKey = 'dark_mode';
+  static const String notificationsEnabledKey = 'notifications_enabled';
+  static const String languageKey = 'language';
+  static const String distanceUnitKey = 'distance_unit';
+
+  // Hive Box Names
+  static const String userBox = 'user_box';
+  static const String sessionsBox = 'sessions_box';
+  static const String citiesBox = 'cities_box';
+  static const String settingsBox = 'settings_box';
 
   // Animation Durations
   static const Duration shortAnimation = Duration(milliseconds: 200);
   static const Duration mediumAnimation = Duration(milliseconds: 350);
   static const Duration longAnimation = Duration(milliseconds: 500);
 
-  // Debounce Durations
-  static const Duration searchDebounce = Duration(milliseconds: 500);
+  // Tracking Configuration
+  static const int trackingIntervalSeconds = 3;
+  static const double trackingMinDistanceMeters = 20.0;
   static const Duration locationDebounce = Duration(milliseconds: 1000);
 
   // Limits
@@ -55,12 +88,14 @@ class AppConstants {
   static const double minDistanceForBuilding = 0.5; // km
 
   // City Building
-  static const double buildingCostBase = 100; // steps required
+  static const double buildingCostBase = 100;
   static const Map<String, double> buildingCostMultiplier = {
     'house': 1.0,
     'shop': 1.5,
     'park': 2.0,
     'factory': 2.5,
     'school': 3.0,
+    'hospital': 4.0,
+    'stadium': 5.0,
   };
 }

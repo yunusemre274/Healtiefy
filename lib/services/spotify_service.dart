@@ -1,220 +1,280 @@
 import 'dart:async';
 
 import '../data/models/spotify_models.dart';
+import 'spotify_auth_service.dart';
+import 'spotify_api_service.dart';
 
+/// SpotifyService acts as a facade for Spotify functionality.
+/// It delegates to SpotifyAuthService for authentication and
+/// SpotifyApiService for API calls.
 class SpotifyService {
-  String? _accessToken;
-  String? _refreshToken;
-  DateTime? _tokenExpiry;
+  final SpotifyAuthService _authService;
+  final SpotifyApiService _apiService;
+
+  // For demo/fallback when real API fails
+  bool _useMockData = false;
 
   final _playerStateController =
       StreamController<SpotifyPlayerState>.broadcast();
   Stream<SpotifyPlayerState> get playerStateStream =>
       _playerStateController.stream;
 
-  bool get isConnected => _accessToken != null && !_isTokenExpired;
-
-  bool get _isTokenExpired {
-    if (_tokenExpiry == null) return true;
-    return DateTime.now().isAfter(_tokenExpiry!);
+  SpotifyService({
+    SpotifyAuthService? authService,
+    SpotifyApiService? apiService,
+  })  : _authService = authService ?? SpotifyAuthService(),
+        _apiService = apiService ??
+            SpotifyApiService(
+              authService: authService ?? SpotifyAuthService(),
+            ) {
+    // Forward player state from API service
+    _apiService.playerStateStream.listen((state) {
+      _playerStateController.add(state);
+    });
   }
 
-  // Connect to Spotify (OAuth flow)
+  bool get isConnected => _authService.isAuthenticated || _useMockData;
+
+  /// Connect to Spotify using OAuth PKCE flow
   Future<bool> connect() async {
-    // In a real app, this would use flutter_web_auth_2 for OAuth
-    // For demo purposes, we'll simulate a successful connection
+    try {
+      final connected = await _apiService.connect();
+      if (connected) {
+        _useMockData = false;
+        return true;
+      }
+    } catch (e) {
+      print('Spotify connection error: $e');
+    }
 
-    await Future.delayed(const Duration(seconds: 1));
-
-    // Simulate getting tokens
-    _accessToken = 'demo_access_token';
-    _refreshToken = 'demo_refresh_token';
-    _tokenExpiry = DateTime.now().add(const Duration(hours: 1));
-
+    // Fallback to mock data for demo purposes
+    _useMockData = true;
     return true;
   }
 
-  // Disconnect from Spotify
+  /// Disconnect from Spotify and clear tokens
   Future<void> disconnect() async {
-    _accessToken = null;
-    _refreshToken = null;
-    _tokenExpiry = null;
+    await _authService.logout();
+    _useMockData = false;
   }
 
-  // Refresh access token
-  Future<bool> refreshAccessToken() async {
-    if (_refreshToken == null) return false;
-
-    // In a real app, this would call Spotify's token refresh endpoint
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    _accessToken = 'refreshed_access_token';
-    _tokenExpiry = DateTime.now().add(const Duration(hours: 1));
-
-    return true;
-  }
-
-  // Get user's playlists
+  /// Get user's playlists
   Future<List<SpotifyPlaylist>> getPlaylists() async {
-    if (!isConnected) {
-      throw SpotifyException('Not connected to Spotify');
+    if (_useMockData) {
+      await Future.delayed(const Duration(milliseconds: 500));
+      return _getMockPlaylists();
     }
 
-    // In a real app, this would fetch from Spotify API
-    // For demo, return mock data
-    await Future.delayed(const Duration(milliseconds: 500));
-
-    return _getMockPlaylists();
+    try {
+      return await _apiService.getPlaylists();
+    } catch (e) {
+      print('Failed to fetch playlists: $e');
+      return _getMockPlaylists();
+    }
   }
 
-  // Get playlist tracks
+  /// Get playlist tracks
   Future<List<SpotifyTrack>> getPlaylistTracks(String playlistId) async {
-    if (!isConnected) {
-      throw SpotifyException('Not connected to Spotify');
+    if (_useMockData) {
+      await Future.delayed(const Duration(milliseconds: 300));
+      return _getMockTracks();
     }
 
-    await Future.delayed(const Duration(milliseconds: 300));
-
-    return _getMockTracks();
+    try {
+      return await _apiService.getPlaylistTracks(playlistId);
+    } catch (e) {
+      print('Failed to fetch playlist tracks: $e');
+      return _getMockTracks();
+    }
   }
 
-  // Get current playback state
+  /// Get current playback state
   Future<SpotifyPlayerState?> getPlayerState() async {
-    if (!isConnected) return null;
+    if (_useMockData) {
+      await Future.delayed(const Duration(milliseconds: 200));
+      final state = SpotifyPlayerState(
+        isPlaying: false,
+        currentTrack: _getMockTracks().first,
+        progressMs: 0,
+        durationMs: _getMockTracks().first.durationMs,
+      );
+      _playerStateController.add(state);
+      return state;
+    }
 
-    await Future.delayed(const Duration(milliseconds: 200));
-
-    // Return mock player state
-    final state = SpotifyPlayerState(
-      isPlaying: false,
-      currentTrack: _getMockTracks().first,
-      progressMs: 0,
-      durationMs: _getMockTracks().first.durationMs,
-    );
-
-    _playerStateController.add(state);
-    return state;
+    try {
+      return await _apiService.getCurrentlyPlaying();
+    } catch (e) {
+      print('Failed to get player state: $e');
+      return null;
+    }
   }
 
-  // Play a track or playlist
+  /// Play a track or playlist
   Future<void> play({String? uri, String? contextUri}) async {
-    if (!isConnected) {
-      throw SpotifyException('Not connected to Spotify');
+    if (_useMockData) {
+      await Future.delayed(const Duration(milliseconds: 200));
+      final track = _getMockTracks().first;
+      _playerStateController.add(SpotifyPlayerState(
+        isPlaying: true,
+        currentTrack: track,
+        progressMs: 0,
+        durationMs: track.durationMs,
+      ));
+      return;
     }
 
-    await Future.delayed(const Duration(milliseconds: 200));
-
-    final track = _getMockTracks().first;
-    final state = SpotifyPlayerState(
-      isPlaying: true,
-      currentTrack: track,
-      progressMs: 0,
-      durationMs: track.durationMs,
-    );
-
-    _playerStateController.add(state);
+    try {
+      await _apiService.play(uri: uri, contextUri: contextUri);
+    } catch (e) {
+      print('Failed to play: $e');
+      throw SpotifyException('Failed to play track');
+    }
   }
 
-  // Pause playback
+  /// Pause playback
   Future<void> pause() async {
-    if (!isConnected) {
-      throw SpotifyException('Not connected to Spotify');
+    if (_useMockData) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      final track = _getMockTracks().first;
+      _playerStateController.add(SpotifyPlayerState(
+        isPlaying: false,
+        currentTrack: track,
+        progressMs: 30000,
+        durationMs: track.durationMs,
+      ));
+      return;
     }
 
-    await Future.delayed(const Duration(milliseconds: 100));
-
-    final track = _getMockTracks().first;
-    final state = SpotifyPlayerState(
-      isPlaying: false,
-      currentTrack: track,
-      progressMs: 30000,
-      durationMs: track.durationMs,
-    );
-
-    _playerStateController.add(state);
+    try {
+      await _apiService.pause();
+    } catch (e) {
+      print('Failed to pause: $e');
+    }
   }
 
-  // Resume playback
+  /// Resume playback
   Future<void> resume() async {
     await play();
   }
 
-  // Skip to next track
+  /// Skip to next track
   Future<void> skipNext() async {
-    if (!isConnected) {
-      throw SpotifyException('Not connected to Spotify');
+    if (_useMockData) {
+      await Future.delayed(const Duration(milliseconds: 200));
+      final tracks = _getMockTracks();
+      final track = tracks.length > 1 ? tracks[1] : tracks.first;
+      _playerStateController.add(SpotifyPlayerState(
+        isPlaying: true,
+        currentTrack: track,
+        progressMs: 0,
+        durationMs: track.durationMs,
+      ));
+      return;
     }
 
-    await Future.delayed(const Duration(milliseconds: 200));
-
-    final tracks = _getMockTracks();
-    final track = tracks.length > 1 ? tracks[1] : tracks.first;
-    final state = SpotifyPlayerState(
-      isPlaying: true,
-      currentTrack: track,
-      progressMs: 0,
-      durationMs: track.durationMs,
-    );
-
-    _playerStateController.add(state);
+    try {
+      await _apiService.skipNext();
+    } catch (e) {
+      print('Failed to skip next: $e');
+    }
   }
 
-  // Skip to previous track
+  /// Skip to previous track
   Future<void> skipPrevious() async {
-    if (!isConnected) {
-      throw SpotifyException('Not connected to Spotify');
+    if (_useMockData) {
+      await Future.delayed(const Duration(milliseconds: 200));
+      final track = _getMockTracks().last;
+      _playerStateController.add(SpotifyPlayerState(
+        isPlaying: true,
+        currentTrack: track,
+        progressMs: 0,
+        durationMs: track.durationMs,
+      ));
+      return;
     }
 
-    await Future.delayed(const Duration(milliseconds: 200));
-
-    final track = _getMockTracks().last;
-    final state = SpotifyPlayerState(
-      isPlaying: true,
-      currentTrack: track,
-      progressMs: 0,
-      durationMs: track.durationMs,
-    );
-
-    _playerStateController.add(state);
+    try {
+      await _apiService.skipPrevious();
+    } catch (e) {
+      print('Failed to skip previous: $e');
+    }
   }
 
-  // Seek to position
+  /// Seek to position
   Future<void> seekTo(int positionMs) async {
-    if (!isConnected) {
-      throw SpotifyException('Not connected to Spotify');
+    if (_useMockData) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      return;
     }
 
-    await Future.delayed(const Duration(milliseconds: 100));
+    try {
+      await _apiService.seekTo(positionMs);
+    } catch (e) {
+      print('Failed to seek: $e');
+    }
   }
 
-  // Set volume
+  /// Set volume (0.0 to 1.0)
   Future<void> setVolume(double volume) async {
-    if (!isConnected) {
-      throw SpotifyException('Not connected to Spotify');
+    if (_useMockData) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      return;
     }
 
-    await Future.delayed(const Duration(milliseconds: 100));
+    try {
+      await _apiService.setVolume((volume * 100).round());
+    } catch (e) {
+      print('Failed to set volume: $e');
+    }
   }
 
-  // Toggle shuffle
+  /// Toggle shuffle mode
   Future<void> toggleShuffle(bool enabled) async {
-    if (!isConnected) {
-      throw SpotifyException('Not connected to Spotify');
+    if (_useMockData) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      return;
     }
 
-    await Future.delayed(const Duration(milliseconds: 100));
+    try {
+      await _apiService.setShuffle(enabled);
+    } catch (e) {
+      print('Failed to toggle shuffle: $e');
+    }
   }
 
-  // Set repeat mode
+  /// Set repeat mode: 'off', 'context', 'track'
   Future<void> setRepeatMode(String mode) async {
-    if (!isConnected) {
-      throw SpotifyException('Not connected to Spotify');
+    if (_useMockData) {
+      await Future.delayed(const Duration(milliseconds: 100));
+      return;
     }
 
-    await Future.delayed(const Duration(milliseconds: 100));
+    try {
+      await _apiService.setRepeat(mode);
+    } catch (e) {
+      print('Failed to set repeat mode: $e');
+    }
   }
 
-  // Mock data generators
+  /// Get the authorization URL for manual OAuth flow
+  String getAuthorizationUrl() {
+    return _authService.buildAuthorizationUrl();
+  }
+
+  /// Handle OAuth callback with authorization code
+  Future<bool> handleAuthCallback(String code) async {
+    try {
+      await _authService.exchangeCodeForToken(code);
+      _useMockData = false;
+      return true;
+    } catch (e) {
+      print('Failed to handle auth callback: $e');
+      return false;
+    }
+  }
+
+  // Mock data generators for demo/fallback
   List<SpotifyPlaylist> _getMockPlaylists() {
     return [
       SpotifyPlaylist(
@@ -327,6 +387,7 @@ class SpotifyService {
 
   void dispose() {
     _playerStateController.close();
+    _apiService.dispose();
   }
 }
 

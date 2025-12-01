@@ -200,9 +200,9 @@ class _LoginScreenState extends State<LoginScreen> {
                   Row(
                     children: [
                       Expanded(
-                        child: _SocialButton(
+                        child: SocialSignInButton(
+                          text: 'Google',
                           icon: Icons.g_mobiledata_rounded,
-                          label: 'Google',
                           onPressed: () {
                             context
                                 .read<AuthBloc>()
@@ -212,9 +212,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                       const SizedBox(width: 16),
                       Expanded(
-                        child: _SocialButton(
+                        child: SocialSignInButton(
+                          text: 'Apple',
                           icon: Icons.apple,
-                          label: 'Apple',
                           onPressed: () {
                             context
                                 .read<AuthBloc>()
@@ -251,42 +251,6 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-class _SocialButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onPressed;
-
-  const _SocialButton({
-    required this.icon,
-    required this.label,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      height: 56,
-      child: OutlinedButton(
-        onPressed: onPressed,
-        style: OutlinedButton.styleFrom(
-          side: BorderSide(color: AppColors.surfaceVariant, width: 2),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 24),
-            const SizedBox(width: 8),
-            Text(label),
-          ],
         ),
       ),
     );

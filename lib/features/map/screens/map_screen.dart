@@ -6,6 +6,8 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../bloc/map_bloc.dart';
+import '../../../widgets/cards/soft_card.dart';
+import '../../../widgets/buttons/soft_button.dart';
 
 class MapScreen extends StatefulWidget {
   const MapScreen({super.key});
@@ -80,14 +82,14 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       // City button
-                      _MapIconButton(
+                      SoftIconButton(
                         icon: Icons.location_city_rounded,
-                        onTap: () => context.go('/map/city-builder'),
+                        onPressed: () => context.go('/map/city-builder'),
                       ).animate().fadeIn().slideX(begin: -0.5),
                       // Recenter button
-                      _MapIconButton(
+                      SoftIconButton(
                         icon: Icons.my_location_rounded,
-                        onTap: () => _recenterMap(state),
+                        onPressed: () => _recenterMap(state),
                       ).animate().fadeIn().slideX(begin: 0.5),
                     ],
                   ),
@@ -200,38 +202,6 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
   }
 }
 
-class _MapIconButton extends StatelessWidget {
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _MapIconButton({
-    required this.icon,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          shape: BoxShape.circle,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.1),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
-        ),
-        child: Icon(icon, color: AppColors.textPrimary),
-      ),
-    );
-  }
-}
-
 class _TrackingStatsCard extends StatelessWidget {
   final MapReady state;
 
@@ -241,19 +211,9 @@ class _TrackingStatsCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final steps = (state.currentDistance * 1312).round();
 
-    return Container(
+    return SoftCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+      margin: EdgeInsets.zero,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceAround,
         children: [

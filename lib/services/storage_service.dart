@@ -133,15 +133,15 @@ class StorageService {
 
   // Spotify token
   Future<void> saveSpotifyToken(String token) async {
-    await _prefs.setString(AppConstants.spotifyTokenKey, token);
+    await _prefs.setString(AppConstants.spotifyAccessTokenKey, token);
   }
 
   String? getSpotifyToken() {
-    return _prefs.getString(AppConstants.spotifyTokenKey);
+    return _prefs.getString(AppConstants.spotifyAccessTokenKey);
   }
 
   Future<void> clearSpotifyToken() async {
-    await _prefs.remove(AppConstants.spotifyTokenKey);
+    await _prefs.remove(AppConstants.spotifyAccessTokenKey);
   }
 
   // Water intake tracking

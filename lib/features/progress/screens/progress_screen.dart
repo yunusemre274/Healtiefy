@@ -6,6 +6,8 @@ import 'package:go_router/go_router.dart';
 import '../../../core/theme/app_colors.dart';
 import '../bloc/progress_bloc.dart';
 import '../../../data/models/session_model.dart';
+import '../../../widgets/cards/soft_card.dart';
+import '../../../widgets/buttons/soft_button.dart';
 
 class ProgressScreen extends StatefulWidget {
   const ProgressScreen({super.key});
@@ -284,19 +286,9 @@ class _SummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SoftCard(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+      margin: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -335,91 +327,79 @@ class _SessionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
+    return SoftCard(
       onTap: () => context.go('/progress/session/${session.id}'),
-      child: Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
-              blurRadius: 20,
-              offset: const Offset(0, 4),
+      padding: const EdgeInsets.all(16),
+      margin: EdgeInsets.zero,
+      child: Row(
+        children: [
+          // Icon and mini-map preview
+          Container(
+            width: 60,
+            height: 60,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.1),
+              borderRadius: BorderRadius.circular(12),
             ),
-          ],
-        ),
-        child: Row(
-          children: [
-            // Icon and mini-map preview
-            Container(
-              width: 60,
-              height: 60,
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(
-                Icons.route_rounded,
-                color: AppColors.primary,
-                size: 28,
-              ),
+            child: Icon(
+              Icons.route_rounded,
+              color: AppColors.primary,
+              size: 28,
             ),
-            const SizedBox(width: 16),
-            // Session info
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _formatDate(session.startTime ?? session.date),
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      _InfoChip(
-                        icon: Icons.straighten_rounded,
-                        text: '${session.distanceKm.toStringAsFixed(2)} km',
-                      ),
-                      const SizedBox(width: 8),
-                      _InfoChip(
-                        icon: Icons.timer_rounded,
-                        text: _formatDuration(session.durationMinutes),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            // Steps and arrow
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+          ),
+          const SizedBox(width: 16),
+          // Session info
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '${session.steps}',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.bold,
-                      ),
+                  _formatDate(session.startTime ?? session.date),
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
-                Text(
-                  'steps',
-                  style: TextStyle(
-                    color: AppColors.textSecondary,
-                    fontSize: 12,
-                  ),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    _InfoChip(
+                      icon: Icons.straighten_rounded,
+                      text: '${session.distanceKm.toStringAsFixed(2)} km',
+                    ),
+                    const SizedBox(width: 8),
+                    _InfoChip(
+                      icon: Icons.timer_rounded,
+                      text: _formatDuration(session.durationMinutes),
+                    ),
+                  ],
                 ),
               ],
             ),
-            const SizedBox(width: 8),
-            Icon(
-              Icons.chevron_right_rounded,
-              color: AppColors.textSecondary,
-            ),
-          ],
-        ),
+          ),
+          // Steps and arrow
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                '${session.steps}',
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+              ),
+              Text(
+                'steps',
+                style: TextStyle(
+                  color: AppColors.textSecondary,
+                  fontSize: 12,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 8),
+          Icon(
+            Icons.chevron_right_rounded,
+            color: AppColors.textSecondary,
+          ),
+        ],
       ),
     );
   }
@@ -497,13 +477,9 @@ class _EmptySessionsState extends StatelessWidget {
         break;
     }
 
-    return Container(
+    return SoftCard(
       margin: const EdgeInsets.all(20),
       padding: const EdgeInsets.all(32),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-      ),
       child: Column(
         children: [
           Icon(
@@ -521,9 +497,10 @@ class _EmptySessionsState extends StatelessWidget {
             textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
-          ElevatedButton(
+          SoftButton(
+            text: 'Start Walking',
+            icon: Icons.play_arrow_rounded,
             onPressed: () => context.go('/map'),
-            child: const Text('Start Walking'),
           ),
         ],
       ),

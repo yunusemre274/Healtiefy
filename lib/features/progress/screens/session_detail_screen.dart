@@ -3,6 +3,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../widgets/cards/soft_card.dart';
 
 class SessionDetailScreen extends StatelessWidget {
   final String sessionId;
@@ -238,19 +239,8 @@ class _DetailedStatsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    return SoftCard(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 20,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
       child: Column(
         children: [
           _DetailRow(
@@ -342,12 +332,8 @@ class _AchievementsSection extends StatelessWidget {
     final achievements = session.achievements;
 
     if (achievements.isEmpty) {
-      return Container(
+      return SoftCard(
         padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-        ),
         child: Center(
           child: Column(
             children: [
@@ -371,18 +357,9 @@ class _AchievementsSection extends StatelessWidget {
       spacing: 12,
       runSpacing: 12,
       children: achievements.map((achievement) {
-        return Container(
+        return SoftCard(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.05),
-                blurRadius: 10,
-              ),
-            ],
-          ),
+          margin: EdgeInsets.zero,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
