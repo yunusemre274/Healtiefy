@@ -20,7 +20,7 @@ class AppTheme {
         onSurface: AppColors.textPrimary,
         onError: Colors.white,
       ),
-      fontFamily: 'Nunito',
+      fontFamily: 'Roboto',
       textTheme: const TextTheme(
         displayLarge: TextStyle(
           fontSize: 32,
@@ -112,7 +112,7 @@ class AppTheme {
           textStyle: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
-            fontFamily: 'Nunito',
+            fontFamily: 'Roboto',
           ),
         ),
       ),
@@ -127,7 +127,7 @@ class AppTheme {
           textStyle: const TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w600,
-            fontFamily: 'Nunito',
+            fontFamily: 'Roboto',
           ),
         ),
       ),
@@ -137,7 +137,7 @@ class AppTheme {
           textStyle: const TextStyle(
             fontSize: 14,
             fontWeight: FontWeight.w600,
-            fontFamily: 'Nunito',
+            fontFamily: 'Roboto',
           ),
         ),
       ),
@@ -192,12 +192,12 @@ class AppTheme {
         selectedLabelStyle: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.w600,
-          fontFamily: 'Nunito',
+          fontFamily: 'Roboto',
         ),
         unselectedLabelStyle: TextStyle(
           fontSize: 12,
           fontWeight: FontWeight.normal,
-          fontFamily: 'Nunito',
+          fontFamily: 'Roboto',
         ),
       ),
       appBarTheme: const AppBarTheme(
@@ -209,14 +209,14 @@ class AppTheme {
           color: AppColors.textPrimary,
           fontSize: 20,
           fontWeight: FontWeight.bold,
-          fontFamily: 'Nunito',
+          fontFamily: 'Roboto',
         ),
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: AppColors.textPrimary,
         contentTextStyle: const TextStyle(
           color: Colors.white,
-          fontFamily: 'Nunito',
+          fontFamily: 'Roboto',
         ),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(12),
@@ -232,7 +232,7 @@ class AppTheme {
           color: AppColors.textPrimary,
           fontSize: 20,
           fontWeight: FontWeight.bold,
-          fontFamily: 'Nunito',
+          fontFamily: 'Roboto',
         ),
       ),
       bottomSheetTheme: const BottomSheetThemeData(
