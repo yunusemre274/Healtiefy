@@ -3,7 +3,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:geolocator/geolocator.dart';
-import 'package:pedometer/pedometer.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../data/models/session_model.dart';
@@ -11,6 +10,7 @@ import '../../../data/models/city_zone_model.dart';
 import '../../../services/location_service.dart';
 import '../../../services/city_builder_service.dart';
 import '../../../services/storage_service.dart';
+import '../../../services/step_tracking_service.dart';
 
 // Events
 abstract class MapEvent extends Equatable {
@@ -83,6 +83,16 @@ class MapStepCountUpdated extends MapEvent {
 
   @override
   List<Object?> get props => [steps];
+}
+
+class MapRouteUpdated extends MapEvent {
+  final List<LatLng> route;
+  final double distance;
+
+  MapRouteUpdated({required this.route, required this.distance});
+
+  @override
+  List<Object?> get props => [route, distance];
 }
 
 // States
@@ -177,18 +187,19 @@ class MapBloc extends Bloc<MapEvent, MapState> {
   final LocationService locationService;
   final CityBuilderService cityBuilderService;
   final StorageService storageService;
+  final StepTrackingService? stepTrackingService;
 
   StreamSubscription<Position>? _locationSubscription;
   StreamSubscription<List<LatLng>>? _trackingSubscription;
-  StreamSubscription<StepCount>? _stepCountSubscription;
+  StreamSubscription<int>? _stepCountSubscription;
   Timer? _durationTimer;
   DateTime? _trackingStartTime;
-  int _initialStepCount = 0;
 
   MapBloc({
     required this.locationService,
     required this.cityBuilderService,
     required this.storageService,
+    this.stepTrackingService,
   }) : super(MapInitial()) {
     on<MapInitRequested>(_onInitRequested);
     on<MapStartTracking>(_onStartTracking);
@@ -202,6 +213,21 @@ class MapBloc extends Bloc<MapEvent, MapState> {
     on<MapLoadCityZones>(_onLoadCityZones);
     on<MapSelectCityZone>(_onSelectCityZone);
     on<MapStepCountUpdated>(_onStepCountUpdated);
+    on<MapRouteUpdated>(_onRouteUpdated);
+  }
+
+  void _onRouteUpdated(
+    MapRouteUpdated event,
+    Emitter<MapState> emit,
+  ) {
+    final currentState = state;
+    if (currentState is! MapReady) return;
+    if (currentState.trackingStatus != TrackingStatus.tracking) return;
+
+    emit(currentState.copyWith(
+      currentRoute: event.route,
+      currentDistance: event.distance,
+    ));
   }
 
   void _onStepCountUpdated(
@@ -212,9 +238,9 @@ class MapBloc extends Bloc<MapEvent, MapState> {
     if (currentState is! MapReady) return;
     if (currentState.trackingStatus != TrackingStatus.tracking) return;
 
-    final sessionSteps = event.steps - _initialStepCount;
-    emit(currentState.copyWith(
-        currentSteps: sessionSteps > 0 ? sessionSteps : 0));
+    // event.steps is already session steps from StepTrackingService
+    emit(
+        currentState.copyWith(currentSteps: event.steps > 0 ? event.steps : 0));
   }
 
   Future<void> _onInitRequested(
@@ -257,25 +283,25 @@ class MapBloc extends Bloc<MapEvent, MapState> {
       }
 
       _trackingStartTime = DateTime.now();
-      _initialStepCount = 0;
 
-      // Start pedometer for step counting
-      try {
-        _stepCountSubscription?.cancel();
-        _stepCountSubscription = Pedometer.stepCountStream.listen(
-          (StepCount stepCount) {
-            if (_initialStepCount == 0) {
-              _initialStepCount = stepCount.steps;
-            }
-            add(MapStepCountUpdated(steps: stepCount.steps));
-          },
-          onError: (error) {
-            // Pedometer not available, fallback to distance-based estimation
-            debugPrint('Pedometer error: $error');
-          },
-        );
-      } catch (e) {
-        debugPrint('Failed to initialize pedometer: $e');
+      // Start step tracking session using StepTrackingService
+      if (stepTrackingService != null) {
+        try {
+          _stepCountSubscription?.cancel();
+          stepTrackingService!.startSession();
+          _stepCountSubscription = stepTrackingService!.stepsStream.listen(
+            (steps) {
+              // Get session steps from the service
+              add(MapStepCountUpdated(
+                  steps: stepTrackingService!.sessionSteps));
+            },
+            onError: (error) {
+              debugPrint('Step tracking error: $error');
+            },
+          );
+        } catch (e) {
+          debugPrint('Failed to initialize step tracking: $e');
+        }
       }
 
       // Start duration timer
@@ -295,15 +321,14 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         add(MapLocationUpdated(position: position));
       });
 
-      // Listen to route updates
+      // Listen to route updates - use event to properly handle state changes
       _trackingSubscription = locationService.trackingStream.listen((route) {
         if (state is MapReady) {
           final ready = state as MapReady;
-          final distance = locationService.calculateRouteDistance(route);
-          emit(ready.copyWith(
-            currentRoute: route,
-            currentDistance: distance,
-          ));
+          if (ready.trackingStatus == TrackingStatus.tracking) {
+            final distance = locationService.calculateRouteDistance(route);
+            add(MapRouteUpdated(route: route, distance: distance));
+          }
         }
       });
 
@@ -330,6 +355,9 @@ class MapBloc extends Bloc<MapEvent, MapState> {
     await _locationSubscription?.cancel();
     await _trackingSubscription?.cancel();
     await _stepCountSubscription?.cancel();
+
+    // End step tracking session
+    stepTrackingService?.endSession();
 
     final route = await locationService.stopTracking();
 

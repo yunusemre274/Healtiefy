@@ -72,7 +72,14 @@ class SpotifyInitial extends SpotifyState {}
 
 class SpotifyLoading extends SpotifyState {}
 
-class SpotifyDisconnected extends SpotifyState {}
+class SpotifyDisconnected extends SpotifyState {
+  final String? errorMessage;
+
+  SpotifyDisconnected({this.errorMessage});
+
+  @override
+  List<Object?> get props => [errorMessage];
+}
 
 class SpotifyConnected extends SpotifyState {
   final List<SpotifyPlaylist> playlists;
@@ -141,18 +148,30 @@ class SpotifyBloc extends Bloc<SpotifyEvent, SpotifyState> {
     emit(SpotifyLoading());
 
     try {
+      print('[SpotifyBloc] Starting Spotify connection...');
       final connected = await spotifyService.connect();
 
       if (connected) {
+        print('[SpotifyBloc] Successfully connected to Spotify');
         _subscribeToPlayerState();
-        add(SpotifyLoadPlaylists());
+        // Load playlists after successful connection
+        final playlists = await spotifyService.getPlaylists();
+        final playerState = await spotifyService.getPlayerState();
+
+        emit(SpotifyConnected(
+          playlists: playlists,
+          playerState: playerState ?? const SpotifyPlayerState(),
+        ));
       } else {
-        emit(SpotifyError(message: 'Failed to connect to Spotify'));
-        emit(SpotifyDisconnected());
+        final errorMsg =
+            spotifyService.lastError ?? 'Failed to connect to Spotify';
+        print('[SpotifyBloc] Connection failed: $errorMsg');
+        emit(SpotifyDisconnected(errorMessage: errorMsg));
       }
     } catch (e) {
-      emit(SpotifyError(message: 'Connection error: ${e.toString()}'));
-      emit(SpotifyDisconnected());
+      print('[SpotifyBloc] Connection error: $e');
+      emit(SpotifyDisconnected(
+          errorMessage: 'Connection error: ${e.toString()}'));
     }
   }
 
@@ -169,8 +188,12 @@ class SpotifyBloc extends Bloc<SpotifyEvent, SpotifyState> {
     SpotifyLoadPlaylists event,
     Emitter<SpotifyState> emit,
   ) async {
+    print(
+        '[SpotifyBloc] Loading playlists, isConnected=${spotifyService.isConnected}');
+
     // Check if connected first
     if (!spotifyService.isConnected) {
+      print('[SpotifyBloc] Not connected, showing disconnected state');
       emit(SpotifyDisconnected());
       return;
     }
@@ -181,21 +204,18 @@ class SpotifyBloc extends Bloc<SpotifyEvent, SpotifyState> {
       final playlists = await spotifyService.getPlaylists();
       final playerState = await spotifyService.getPlayerState();
 
-      if (playlists.isEmpty) {
-        // If no playlists, might be disconnected
-        emit(SpotifyConnected(
-          playlists: [],
-          playerState: playerState ?? const SpotifyPlayerState(),
-        ));
-      } else {
-        emit(SpotifyConnected(
-          playlists: playlists,
-          playerState: playerState ?? const SpotifyPlayerState(),
-        ));
-      }
+      print('[SpotifyBloc] Loaded ${playlists.length} playlists');
+
+      _subscribeToPlayerState();
+
+      emit(SpotifyConnected(
+        playlists: playlists,
+        playerState: playerState ?? const SpotifyPlayerState(),
+      ));
     } catch (e) {
-      emit(SpotifyError(message: 'Failed to load playlists: ${e.toString()}'));
-      emit(SpotifyDisconnected());
+      print('[SpotifyBloc] Failed to load playlists: $e');
+      emit(SpotifyDisconnected(
+          errorMessage: 'Failed to load playlists: ${e.toString()}'));
     }
   }
 
@@ -236,7 +256,7 @@ class SpotifyBloc extends Bloc<SpotifyEvent, SpotifyState> {
     try {
       await spotifyService.play(uri: event.uri, contextUri: event.contextUri);
     } catch (e) {
-      emit(SpotifyError(message: 'Failed to play track'));
+      print('[SpotifyBloc] Failed to play track: $e');
     }
   }
 

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:provider/provider.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:app_links/app_links.dart';
@@ -24,6 +25,8 @@ import 'services/storage_service.dart';
 import 'services/local_cache_service.dart';
 import 'services/tracking_service.dart';
 import 'services/farm_service.dart';
+import 'services/step_tracking_service.dart';
+import 'services/water_tracking_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -67,6 +70,14 @@ void main() async {
   final farmService = FarmService();
   await farmService.init();
 
+  // Initialize step tracking service
+  final stepTrackingService = StepTrackingService();
+  await stepTrackingService.init();
+
+  // Initialize water tracking service
+  final waterTrackingService = WaterTrackingService();
+  await waterTrackingService.init();
+
   runApp(
     HealtifyApp(
       authService: authService,
@@ -80,6 +91,8 @@ void main() async {
       cacheManager: cacheManager,
       trackingService: trackingService,
       farmService: farmService,
+      stepTrackingService: stepTrackingService,
+      waterTrackingService: waterTrackingService,
     ),
   );
 }
@@ -96,6 +109,8 @@ class HealtifyApp extends StatefulWidget {
   final CacheManager cacheManager;
   final TrackingService trackingService;
   final FarmService farmService;
+  final StepTrackingService stepTrackingService;
+  final WaterTrackingService waterTrackingService;
 
   const HealtifyApp({
     super.key,
@@ -110,6 +125,8 @@ class HealtifyApp extends StatefulWidget {
     required this.cacheManager,
     required this.trackingService,
     required this.farmService,
+    required this.stepTrackingService,
+    required this.waterTrackingService,
   });
 
   @override
@@ -128,83 +145,122 @@ class _HealtifyAppState extends State<HealtifyApp> {
   Future<void> _initDeepLinks() async {
     _appLinks = AppLinks();
 
-    // Handle links that opened the app
-    final initialUri = await _appLinks.getInitialLink();
-    if (initialUri != null) {
-      _handleDeepLink(initialUri);
+    // Handle links that opened the app (cold start)
+    try {
+      final initialUri = await _appLinks.getInitialLink();
+      if (initialUri != null) {
+        print('[DeepLink] Initial link received: $initialUri');
+        _handleDeepLink(initialUri);
+      }
+    } catch (e) {
+      print('[DeepLink] Error getting initial link: $e');
     }
 
-    // Handle links while app is running
-    _appLinks.uriLinkStream.listen((uri) {
-      _handleDeepLink(uri);
-    });
+    // Handle links while app is running (warm start)
+    _appLinks.uriLinkStream.listen(
+      (uri) {
+        print('[DeepLink] Stream link received: $uri');
+        _handleDeepLink(uri);
+      },
+      onError: (e) {
+        print('[DeepLink] Stream error: $e');
+      },
+    );
   }
 
   void _handleDeepLink(Uri uri) {
-    // Handle Spotify OAuth callback
+    print(
+        '[DeepLink] Handling: scheme=${uri.scheme}, host=${uri.host}, path=${uri.path}');
+    print('[DeepLink] Query params: ${uri.queryParameters}');
+    print('[DeepLink] Full URI: $uri');
+
+    // Handle Spotify OAuth callback - check for various path patterns
     if (uri.scheme == 'healtiefy' && uri.host == 'callback') {
+      print('[DeepLink] Spotify callback detected, forwarding to auth service');
       widget.spotifyAuthService.handleRedirectCallback(uri);
+    } else if (uri.scheme == 'healtiefy' &&
+        uri.queryParameters.containsKey('code')) {
+      // Fallback: Handle if code is in query params regardless of host
+      print(
+          '[DeepLink] Spotify callback with code detected (fallback), forwarding to auth service');
+      widget.spotifyAuthService.handleRedirectCallback(uri);
+    } else {
+      print('[DeepLink] Unknown deep link, ignoring');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return MultiRepositoryProvider(
+    return MultiProvider(
       providers: [
-        RepositoryProvider.value(value: widget.authService),
-        RepositoryProvider.value(value: widget.locationService),
-        RepositoryProvider.value(value: widget.healthService),
-        RepositoryProvider.value(value: widget.spotifyService),
-        RepositoryProvider.value(value: widget.spotifyAuthService),
-        RepositoryProvider.value(value: widget.cityBuilderService),
-        RepositoryProvider.value(value: widget.aiService),
-        RepositoryProvider.value(value: widget.storageService),
-        RepositoryProvider.value(value: widget.cacheManager),
-        RepositoryProvider.value(value: widget.trackingService),
-        RepositoryProvider.value(value: widget.farmService),
+        // ChangeNotifierProviders for step and water tracking
+        ChangeNotifierProvider<StepTrackingService>.value(
+          value: widget.stepTrackingService,
+        ),
+        ChangeNotifierProvider<WaterTrackingService>.value(
+          value: widget.waterTrackingService,
+        ),
       ],
-      child: MultiBlocProvider(
+      child: MultiRepositoryProvider(
         providers: [
-          BlocProvider(
-            create: (context) => AuthBloc(authService: widget.authService)
-              ..add(AuthCheckRequested()),
-          ),
-          BlocProvider(
-            create: (context) => DashboardBloc(
-              healthService: widget.healthService,
-              storageService: widget.storageService,
-              aiService: widget.aiService,
-            ),
-          ),
-          BlocProvider(
-            create: (context) => ProgressBloc(
-              storageService: widget.storageService,
-              healthService: widget.healthService,
-            ),
-          ),
-          BlocProvider(
-            create: (context) => MapBloc(
-              locationService: widget.locationService,
-              cityBuilderService: widget.cityBuilderService,
-              storageService: widget.storageService,
-            ),
-          ),
-          BlocProvider(
-            create: (context) =>
-                SpotifyBloc(spotifyService: widget.spotifyService),
-          ),
-          BlocProvider(
-            create: (context) => AccountBloc(
-              authService: widget.authService,
-              storageService: widget.storageService,
-            ),
-          ),
+          RepositoryProvider.value(value: widget.authService),
+          RepositoryProvider.value(value: widget.locationService),
+          RepositoryProvider.value(value: widget.healthService),
+          RepositoryProvider.value(value: widget.spotifyService),
+          RepositoryProvider.value(value: widget.spotifyAuthService),
+          RepositoryProvider.value(value: widget.cityBuilderService),
+          RepositoryProvider.value(value: widget.aiService),
+          RepositoryProvider.value(value: widget.storageService),
+          RepositoryProvider.value(value: widget.cacheManager),
+          RepositoryProvider.value(value: widget.trackingService),
+          RepositoryProvider.value(value: widget.farmService),
+          // stepTrackingService and waterTrackingService are provided via ChangeNotifierProvider
         ],
-        child: MaterialApp.router(
-          title: 'Healtiefy',
-          debugShowCheckedModeBanner: false,
-          theme: AppTheme.lightTheme,
-          routerConfig: AppRouter.router,
+        child: MultiBlocProvider(
+          providers: [
+            BlocProvider(
+              create: (context) => AuthBloc(authService: widget.authService)
+                ..add(AuthCheckRequested()),
+            ),
+            BlocProvider(
+              create: (context) => DashboardBloc(
+                healthService: widget.healthService,
+                storageService: widget.storageService,
+                aiService: widget.aiService,
+                stepTrackingService: widget.stepTrackingService,
+              ),
+            ),
+            BlocProvider(
+              create: (context) => ProgressBloc(
+                storageService: widget.storageService,
+                healthService: widget.healthService,
+              ),
+            ),
+            BlocProvider(
+              create: (context) => MapBloc(
+                locationService: widget.locationService,
+                cityBuilderService: widget.cityBuilderService,
+                storageService: widget.storageService,
+                stepTrackingService: widget.stepTrackingService,
+              ),
+            ),
+            BlocProvider(
+              create: (context) =>
+                  SpotifyBloc(spotifyService: widget.spotifyService),
+            ),
+            BlocProvider(
+              create: (context) => AccountBloc(
+                authService: widget.authService,
+                storageService: widget.storageService,
+              ),
+            ),
+          ],
+          child: MaterialApp.router(
+            title: 'Healtiefy',
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.lightTheme,
+            routerConfig: AppRouter.router,
+          ),
         ),
       ),
     );

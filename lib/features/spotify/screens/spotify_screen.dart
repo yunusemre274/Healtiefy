@@ -26,9 +26,21 @@ class _SpotifyScreenState extends State<SpotifyScreen> {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: BlocBuilder<SpotifyBloc, SpotifyState>(
+        child: BlocConsumer<SpotifyBloc, SpotifyState>(
+          listener: (context, state) {
+            // Show error message if disconnected with error
+            if (state is SpotifyDisconnected && state.errorMessage != null) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(state.errorMessage!),
+                  backgroundColor: AppColors.error,
+                  duration: const Duration(seconds: 4),
+                ),
+              );
+            }
+          },
           builder: (context, state) {
-            if (state is SpotifyDisconnected) {
+            if (state is SpotifyDisconnected || state is SpotifyInitial) {
               return _buildConnectView(context);
             }
 
@@ -47,7 +59,14 @@ class _SpotifyScreenState extends State<SpotifyScreen> {
                   children: [
                     Icon(Icons.error_outline, size: 64, color: AppColors.error),
                     const SizedBox(height: 16),
-                    Text(state.message),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      child: Text(
+                        state.message,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: AppColors.textSecondary),
+                      ),
+                    ),
                     const SizedBox(height: 16),
                     ElevatedButton(
                       onPressed: () => context

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
+import 'package:provider/provider.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../data/models/dashboard_models.dart';
@@ -9,6 +10,8 @@ import '../bloc/dashboard_bloc.dart';
 import '../../../widgets/cards/soft_card.dart';
 import '../../../widgets/cards/premium_metric_cards.dart';
 import '../../../widgets/progress/progress_indicators.dart';
+import '../../../services/step_tracking_service.dart';
+import '../../../services/water_tracking_service.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -205,18 +208,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ).animate().fadeIn(delay: 600.ms),
             ),
           ],
-          // Water Intake
+          // Water Intake - Using Provider for WaterTrackingService
           const SliverToBoxAdapter(child: SizedBox(height: 24)),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: _WaterIntakeCard(
-                currentLiters: state.stats.waterConsumed,
-                goalLiters: state.stats.waterGoal,
-                onAddWater: () {
-                  context
-                      .read<DashboardBloc>()
-                      .add(DashboardWaterIntakeAdded(liters: 0.25));
+              child: Consumer<WaterTrackingService>(
+                builder: (context, waterService, _) {
+                  return _WaterIntakeCard(
+                    currentLiters: waterService.waterTodayLiters,
+                    goalLiters: waterService.waterGoalLiters,
+                    onAddWater: () {
+                      waterService.addGlass(); // Add 250ml glass
+                    },
+                  );
                 },
               ),
             ).animate().fadeIn(delay: 700.ms),
@@ -257,107 +262,119 @@ class _DailyProgressCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final progress = stats.stepProgress;
+    // Use Provider for live step updates from sensor
+    return Consumer<StepTrackingService>(
+      builder: (context, stepService, _) {
+        // Use sensor steps if available, otherwise use stats
+        final liveSteps =
+            stepService.sensorAvailable && stepService.stepsToday > 0
+                ? stepService.stepsToday
+                : stats.totalSteps;
+        final progress = stats.stepGoal > 0
+            ? (liveSteps / stats.stepGoal).clamp(0.0, 1.0)
+            : 0.0;
 
-    return Container(
-      padding: const EdgeInsets.all(24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [AppColors.primary, AppColors.primaryDark],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(24),
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.primary.withValues(alpha: 0.3),
-            blurRadius: 20,
-            offset: const Offset(0, 8),
+        return Container(
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: [AppColors.primary, AppColors.primaryDark],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: AppColors.primary.withValues(alpha: 0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Column(
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          child: Column(
             children: [
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    'Today\'s Steps',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.8),
-                      fontSize: 14,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '${stats.totalSteps}',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 40,
-                          fontWeight: FontWeight.bold,
+                        'Today\'s Steps',
+                        style: TextStyle(
+                          color: Colors.white.withValues(alpha: 0.8),
+                          fontSize: 14,
                         ),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8, left: 4),
-                        child: Text(
-                          '/ ${stats.stepGoal}',
-                          style: TextStyle(
-                            color: Colors.white.withValues(alpha: 0.7),
-                            fontSize: 16,
+                      const SizedBox(height: 4),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: [
+                          Text(
+                            '$liveSteps',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 40,
+                              fontWeight: FontWeight.bold,
+                            ),
                           ),
-                        ),
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8, left: 4),
+                            child: Text(
+                              '/ ${stats.stepGoal}',
+                              style: TextStyle(
+                                color: Colors.white.withValues(alpha: 0.7),
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
+                  RingProgress(
+                    progress: progress,
+                    size: 80,
+                    strokeWidth: 8,
+                    color: Colors.white,
+                    backgroundColor: Colors.white.withValues(alpha: 0.2),
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          '${(progress * 100).toInt()}%',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 18,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
-              RingProgress(
+              const SizedBox(height: 16),
+              LinearProgress(
                 progress: progress,
-                size: 80,
-                strokeWidth: 8,
+                height: 8,
                 color: Colors.white,
                 backgroundColor: Colors.white.withValues(alpha: 0.2),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      '${(progress * 100).toInt()}%',
-                      style: const TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 18,
-                      ),
-                    ),
-                  ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                progress >= 1.0
+                    ? '🎉 Goal completed!'
+                    : '${stats.stepGoal - liveSteps} steps to go',
+                style: TextStyle(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  fontSize: 14,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 16),
-          LinearProgress(
-            progress: progress,
-            height: 8,
-            color: Colors.white,
-            backgroundColor: Colors.white.withValues(alpha: 0.2),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            progress >= 1.0
-                ? '🎉 Goal completed!'
-                : '${stats.stepGoal - stats.totalSteps} steps to go',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.9),
-              fontSize: 14,
-            ),
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

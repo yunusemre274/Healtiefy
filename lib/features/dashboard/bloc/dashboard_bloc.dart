@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 
@@ -6,6 +7,7 @@ import '../../../data/models/session_model.dart';
 import '../../../services/health_service.dart';
 import '../../../services/storage_service.dart';
 import '../../../services/ai_service.dart';
+import '../../../services/step_tracking_service.dart';
 
 // Events
 abstract class DashboardEvent extends Equatable {
@@ -35,6 +37,15 @@ class DashboardStepsUpdated extends DashboardEvent {
   List<Object?> get props => [steps];
 }
 
+class DashboardSensorStepsUpdated extends DashboardEvent {
+  final int sensorSteps;
+
+  DashboardSensorStepsUpdated({required this.sensorSteps});
+
+  @override
+  List<Object?> get props => [sensorSteps];
+}
+
 // States
 abstract class DashboardState extends Equatable {
   @override
@@ -52,6 +63,7 @@ class DashboardLoaded extends DashboardState {
   final List<Session> todaySessions;
   final Map<String, dynamic>? weeklyAnalysis;
   final Map<String, dynamic>? competitiveStats;
+  final bool stepSensorAvailable;
 
   DashboardLoaded({
     required this.stats,
@@ -60,6 +72,7 @@ class DashboardLoaded extends DashboardState {
     this.todaySessions = const [],
     this.weeklyAnalysis,
     this.competitiveStats,
+    this.stepSensorAvailable = true,
   });
 
   DashboardLoaded copyWith({
@@ -69,6 +82,7 @@ class DashboardLoaded extends DashboardState {
     List<Session>? todaySessions,
     Map<String, dynamic>? weeklyAnalysis,
     Map<String, dynamic>? competitiveStats,
+    bool? stepSensorAvailable,
   }) {
     return DashboardLoaded(
       stats: stats ?? this.stats,
@@ -77,6 +91,7 @@ class DashboardLoaded extends DashboardState {
       todaySessions: todaySessions ?? this.todaySessions,
       weeklyAnalysis: weeklyAnalysis ?? this.weeklyAnalysis,
       competitiveStats: competitiveStats ?? this.competitiveStats,
+      stepSensorAvailable: stepSensorAvailable ?? this.stepSensorAvailable,
     );
   }
 
@@ -88,6 +103,7 @@ class DashboardLoaded extends DashboardState {
         todaySessions,
         weeklyAnalysis,
         competitiveStats,
+        stepSensorAvailable,
       ];
 }
 
@@ -105,16 +121,32 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
   final HealthService healthService;
   final StorageService storageService;
   final AIService aiService;
+  final StepTrackingService? stepTrackingService;
+
+  StreamSubscription<int>? _stepSubscription;
 
   DashboardBloc({
     required this.healthService,
     required this.storageService,
     required this.aiService,
+    this.stepTrackingService,
   }) : super(DashboardInitial()) {
     on<DashboardLoadRequested>(_onLoadRequested);
     on<DashboardRefreshRequested>(_onRefreshRequested);
     on<DashboardWaterIntakeAdded>(_onWaterIntakeAdded);
     on<DashboardStepsUpdated>(_onStepsUpdated);
+    on<DashboardSensorStepsUpdated>(_onSensorStepsUpdated);
+
+    // Subscribe to step tracking service if available
+    _subscribeToStepService();
+  }
+
+  void _subscribeToStepService() {
+    if (stepTrackingService != null) {
+      _stepSubscription = stepTrackingService!.stepStream.listen((steps) {
+        add(DashboardSensorStepsUpdated(sensorSteps: steps));
+      });
+    }
   }
 
   Future<void> _onLoadRequested(
@@ -171,6 +203,7 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
         todaySessions: todaySessions,
         weeklyAnalysis: weeklyAnalysis,
         competitiveStats: competitiveStats,
+        stepSensorAvailable: stepTrackingService?.sensorAvailable ?? false,
       ));
     } catch (e) {
       emit(
@@ -231,6 +264,48 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
     emit(currentState.copyWith(stats: updatedStats));
   }
 
+  Future<void> _onSensorStepsUpdated(
+    DashboardSensorStepsUpdated event,
+    Emitter<DashboardState> emit,
+  ) async {
+    final currentState = state;
+    if (currentState is! DashboardLoaded) return;
+
+    final user = storageService.getUser();
+
+    // Get session steps from storage
+    final todaySessions = storageService.getSessionsForDate(DateTime.now());
+    int sessionSteps = 0;
+    for (final session in todaySessions) {
+      sessionSteps += session.steps;
+    }
+
+    // Total steps = sensor steps + session steps from today
+    // (sensor steps are live, sessions are persisted)
+    final totalSteps = event.sensorSteps;
+
+    final calories =
+        healthService.calculateCaloriesFromSteps(totalSteps, user: user);
+    final fatBurned = healthService.calculateFatBurned(calories);
+    final distance =
+        healthService.calculateDistanceFromSteps(totalSteps, user: user);
+
+    final updatedStats = currentState.stats.copyWith(
+      totalSteps: totalSteps,
+      totalCalories: currentState.stats.totalCalories > calories
+          ? currentState.stats.totalCalories
+          : calories,
+      totalFatBurned: currentState.stats.totalFatBurned > fatBurned
+          ? currentState.stats.totalFatBurned
+          : fatBurned,
+      totalDistanceKm: currentState.stats.totalDistanceKm > distance
+          ? currentState.stats.totalDistanceKm
+          : distance,
+    );
+
+    emit(currentState.copyWith(stats: updatedStats));
+  }
+
   Future<DashboardStats> _calculateStats() async {
     final now = DateTime.now();
     final todaySessions = storageService.getSessionsForDate(now);
@@ -257,6 +332,20 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       }
     }
 
+    // If step tracking service is available, use sensor steps
+    if (stepTrackingService != null && stepTrackingService!.sensorAvailable) {
+      final sensorSteps = stepTrackingService!.totalStepsToday;
+      if (sensorSteps > totalSteps) {
+        totalSteps = sensorSteps;
+        // Recalculate derived values
+        totalCalories =
+            healthService.calculateCaloriesFromSteps(totalSteps, user: user);
+        totalFatBurned = healthService.calculateFatBurned(totalCalories);
+        totalDistance =
+            healthService.calculateDistanceFromSteps(totalSteps, user: user);
+      }
+    }
+
     final avgHeartRate =
         heartRateCount > 0 ? totalHeartRate / heartRateCount : 0.0;
     final waterConsumed = storageService.getWaterIntake(now);
@@ -273,5 +362,11 @@ class DashboardBloc extends Bloc<DashboardEvent, DashboardState> {
       activeMinutes: totalMinutes,
       sessionsCount: todaySessions.length,
     );
+  }
+
+  @override
+  Future<void> close() {
+    _stepSubscription?.cancel();
+    return super.close();
   }
 }

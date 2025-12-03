@@ -102,6 +102,7 @@ class SpotifyAuthService {
     try {
       // Build the authorization URL (also generates and stores code verifier)
       final authUrl = buildAuthorizationUrl();
+      print('[SpotifyAuth] Generated auth URL: $authUrl');
 
       // Create a completer to await the callback
       _authCompleter = Completer<SpotifyAuthResult>();
@@ -111,34 +112,42 @@ class SpotifyAuthService {
       final canLaunch = await canLaunchUrl(uri);
 
       if (!canLaunch) {
+        print('[SpotifyAuth] Cannot launch URL');
         _authCompleter = null;
         return SpotifyAuthResult.failure(
             'Cannot open browser for Spotify authentication');
       }
 
+      print('[SpotifyAuth] Launching browser...');
       final launched = await launchUrl(
         uri,
         mode: LaunchMode.externalApplication,
       );
 
       if (!launched) {
+        print('[SpotifyAuth] Failed to launch browser');
         _authCompleter = null;
         return SpotifyAuthResult.failure(
             'Failed to open browser for Spotify authentication');
       }
 
+      print('[SpotifyAuth] Browser launched, waiting for callback...');
+
       // Wait for the callback with a timeout
       final result = await _authCompleter!.future.timeout(
         const Duration(minutes: 5),
         onTimeout: () {
+          print('[SpotifyAuth] Authentication timed out');
           _authCompleter = null;
           return SpotifyAuthResult.failure(
               'Authentication timed out. Please try again.');
         },
       );
 
+      print('[SpotifyAuth] Auth result received: success=${result.isSuccess}');
       return result;
     } catch (e) {
+      print('[SpotifyAuth] Authentication error: $e');
       _authCompleter = null;
       return SpotifyAuthResult.failure('Authentication failed: $e');
     }
@@ -148,11 +157,14 @@ class SpotifyAuthService {
   /// This should be called from your app's deep link handler
   Future<SpotifyAuthResult> handleRedirectCallback(Uri uri) async {
     try {
+      print('[SpotifyAuth] Handling redirect callback: $uri');
+
       // Check for errors from Spotify
       final error = uri.queryParameters['error'];
       if (error != null) {
         final errorDescription =
             uri.queryParameters['error_description'] ?? error;
+        print('[SpotifyAuth] Spotify returned error: $errorDescription');
         final result = SpotifyAuthResult.failure(
             'Spotify authorization error: $errorDescription');
         _authCompleter?.complete(result);
@@ -163,12 +175,16 @@ class SpotifyAuthService {
       // Get the authorization code
       final code = uri.queryParameters['code'];
       if (code == null) {
+        print('[SpotifyAuth] No authorization code in callback');
         final result = SpotifyAuthResult.failure(
             'No authorization code received from Spotify');
         _authCompleter?.complete(result);
         _authCompleter = null;
         return result;
       }
+
+      print(
+          '[SpotifyAuth] Received authorization code, exchanging for tokens...');
 
       // Exchange the code for tokens
       final result = await exchangeCodeForToken(code);
@@ -179,6 +195,7 @@ class SpotifyAuthService {
 
       return result;
     } catch (e) {
+      print('[SpotifyAuth] Callback handling error: $e');
       final result = SpotifyAuthResult.failure('Callback handling error: $e');
       _authCompleter?.complete(result);
       _authCompleter = null;
@@ -202,8 +219,12 @@ class SpotifyAuthService {
       final verifier =
           await _secureStorage.read(key: AppConstants.spotifyCodeVerifierKey);
       if (verifier == null) {
+        print('[SpotifyAuth] Code verifier not found in storage');
         return SpotifyAuthResult.failure('Code verifier not found');
       }
+
+      print('[SpotifyAuth] Exchanging code for token...');
+      print('[SpotifyAuth] Redirect URI: ${AppConstants.spotifyRedirectUri}');
 
       final response = await http.post(
         Uri.parse(AppConstants.spotifyTokenUrl),
@@ -219,9 +240,12 @@ class SpotifyAuthService {
         },
       );
 
+      print('[SpotifyAuth] Token response status: ${response.statusCode}');
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         await _saveTokens(data);
+        print('[SpotifyAuth] Tokens saved successfully');
         return SpotifyAuthResult.success(
           accessToken: _accessToken!,
           refreshToken: _refreshToken,
@@ -229,10 +253,14 @@ class SpotifyAuthService {
         );
       } else {
         final error = json.decode(response.body);
-        return SpotifyAuthResult.failure(
-            'Token exchange failed: ${error['error_description'] ?? error['error']}');
+        final errorMsg =
+            'Token exchange failed: ${error['error_description'] ?? error['error']}';
+        print('[SpotifyAuth] $errorMsg');
+        print('[SpotifyAuth] Full error response: ${response.body}');
+        return SpotifyAuthResult.failure(errorMsg);
       }
     } catch (e) {
+      print('[SpotifyAuth] Token exchange error: $e');
       return SpotifyAuthResult.failure('Token exchange error: $e');
     }
   }
