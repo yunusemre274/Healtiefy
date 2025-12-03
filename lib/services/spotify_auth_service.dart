@@ -1,14 +1,16 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import 'package:flutter_web_auth_2/flutter_web_auth_2.dart';
 import 'package:http/http.dart' as http;
+import 'package:url_launcher/url_launcher.dart';
 
 import '../core/constants/app_constants.dart';
 
 /// Spotify OAuth 2.0 with PKCE (Proof Key for Code Exchange) Service
+/// Uses url_launcher for the OAuth flow with deep link callback handling
 class SpotifyAuthService {
   final FlutterSecureStorage _secureStorage;
 
@@ -16,6 +18,9 @@ class SpotifyAuthService {
   String? _refreshToken;
   DateTime? _expiresAt;
   String? _codeVerifier;
+
+  // Completer for handling the OAuth callback
+  Completer<SpotifyAuthResult>? _authCompleter;
 
   SpotifyAuthService({FlutterSecureStorage? secureStorage})
       : _secureStorage = secureStorage ?? const FlutterSecureStorage();
@@ -45,9 +50,11 @@ class SpotifyAuthService {
   }
 
   /// Generate a cryptographically random code verifier for PKCE
+  /// Must be between 43-128 characters (RFC 7636)
   String generateCodeVerifier() {
     final random = Random.secure();
-    final values = List<int>.generate(64, (_) => random.nextInt(256));
+    // Generate 32 random bytes (will result in 43 base64 characters)
+    final values = List<int>.generate(32, (_) => random.nextInt(256));
     _codeVerifier = base64UrlEncode(values)
         .replaceAll('=', '')
         .replaceAll('+', '-')
@@ -55,7 +62,7 @@ class SpotifyAuthService {
     return _codeVerifier!;
   }
 
-  /// Generate code challenge from verifier using SHA-256
+  /// Generate code challenge from verifier using SHA-256 (S256 method)
   String generateCodeChallenge(String verifier) {
     final bytes = utf8.encode(verifier);
     final digest = sha256.convert(bytes);
@@ -70,7 +77,7 @@ class SpotifyAuthService {
     final verifier = generateCodeVerifier();
     final challenge = generateCodeChallenge(verifier);
 
-    // Store verifier for later use
+    // Store verifier securely for later use during token exchange
     _secureStorage.write(
         key: AppConstants.spotifyCodeVerifierKey, value: verifier);
 
@@ -89,38 +96,103 @@ class SpotifyAuthService {
     return uri.toString();
   }
 
-  /// Start the OAuth flow and return tokens
+  /// Start the OAuth flow using url_launcher
+  /// Returns a Future that completes when the callback is handled
   Future<SpotifyAuthResult> authenticate() async {
     try {
+      // Build the authorization URL (also generates and stores code verifier)
       final authUrl = buildAuthorizationUrl();
 
-      // Open browser for Spotify login
-      final result = await FlutterWebAuth2.authenticate(
-        url: authUrl,
-        callbackUrlScheme: 'healtiefy',
+      // Create a completer to await the callback
+      _authCompleter = Completer<SpotifyAuthResult>();
+
+      // Launch the URL in external browser
+      final uri = Uri.parse(authUrl);
+      final canLaunch = await canLaunchUrl(uri);
+
+      if (!canLaunch) {
+        _authCompleter = null;
+        return SpotifyAuthResult.failure(
+            'Cannot open browser for Spotify authentication');
+      }
+
+      final launched = await launchUrl(
+        uri,
+        mode: LaunchMode.externalApplication,
       );
 
-      // Parse the callback URL
-      final uri = Uri.parse(result);
-      return await handleRedirectCallback(uri);
+      if (!launched) {
+        _authCompleter = null;
+        return SpotifyAuthResult.failure(
+            'Failed to open browser for Spotify authentication');
+      }
+
+      // Wait for the callback with a timeout
+      final result = await _authCompleter!.future.timeout(
+        const Duration(minutes: 5),
+        onTimeout: () {
+          _authCompleter = null;
+          return SpotifyAuthResult.failure(
+              'Authentication timed out. Please try again.');
+        },
+      );
+
+      return result;
     } catch (e) {
+      _authCompleter = null;
       return SpotifyAuthResult.failure('Authentication failed: $e');
     }
   }
 
-  /// Handle the redirect callback from Spotify
+  /// Handle the redirect callback from Spotify deep link
+  /// This should be called from your app's deep link handler
   Future<SpotifyAuthResult> handleRedirectCallback(Uri uri) async {
-    final error = uri.queryParameters['error'];
-    if (error != null) {
-      return SpotifyAuthResult.failure('Spotify authorization error: $error');
-    }
+    try {
+      // Check for errors from Spotify
+      final error = uri.queryParameters['error'];
+      if (error != null) {
+        final errorDescription =
+            uri.queryParameters['error_description'] ?? error;
+        final result = SpotifyAuthResult.failure(
+            'Spotify authorization error: $errorDescription');
+        _authCompleter?.complete(result);
+        _authCompleter = null;
+        return result;
+      }
 
-    final code = uri.queryParameters['code'];
-    if (code == null) {
-      return SpotifyAuthResult.failure('No authorization code received');
-    }
+      // Get the authorization code
+      final code = uri.queryParameters['code'];
+      if (code == null) {
+        final result = SpotifyAuthResult.failure(
+            'No authorization code received from Spotify');
+        _authCompleter?.complete(result);
+        _authCompleter = null;
+        return result;
+      }
 
-    return await exchangeCodeForToken(code);
+      // Exchange the code for tokens
+      final result = await exchangeCodeForToken(code);
+
+      // Complete the auth completer if it exists
+      _authCompleter?.complete(result);
+      _authCompleter = null;
+
+      return result;
+    } catch (e) {
+      final result = SpotifyAuthResult.failure('Callback handling error: $e');
+      _authCompleter?.complete(result);
+      _authCompleter = null;
+      return result;
+    }
+  }
+
+  /// Cancel any pending authentication
+  void cancelAuthentication() {
+    if (_authCompleter != null && !_authCompleter!.isCompleted) {
+      _authCompleter!.complete(
+          SpotifyAuthResult.failure('Authentication cancelled by user'));
+    }
+    _authCompleter = null;
   }
 
   /// Exchange authorization code for access and refresh tokens

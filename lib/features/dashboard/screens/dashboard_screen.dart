@@ -7,6 +7,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../../data/models/dashboard_models.dart';
 import '../bloc/dashboard_bloc.dart';
 import '../../../widgets/cards/soft_card.dart';
+import '../../../widgets/cards/premium_metric_cards.dart';
 import '../../../widgets/progress/progress_indicators.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -138,33 +139,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ).animate().fadeIn(delay: 200.ms).slideY(begin: 0.2),
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 20)),
-          // Stats Grid
+          // Stats Grid - Premium Metric Cards
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Row(
                 children: [
                   Expanded(
-                    child: StatsCard(
-                      title: 'Distance',
-                      value:
-                          '${state.stats.totalDistanceKm.toStringAsFixed(2)} km',
-                      icon: Icons.straighten_rounded,
-                      color: AppColors.secondary,
+                    child: PremiumDistanceCard(
+                      distance: state.stats.totalDistanceKm,
+                      animationDelay: 300,
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: StatsCard(
-                      title: 'Calories',
-                      value: '${state.stats.totalCalories.toInt()} kcal',
-                      icon: Icons.local_fire_department_rounded,
-                      color: AppColors.accent,
+                    child: PremiumCaloriesCard(
+                      calories: state.stats.totalCalories.toInt(),
+                      animationDelay: 350,
                     ),
                   ),
                 ],
               ),
-            ).animate().fadeIn(delay: 300.ms),
+            ),
           ),
           const SliverToBoxAdapter(child: SizedBox(height: 12)),
           SliverToBoxAdapter(
@@ -173,26 +169,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
               child: Row(
                 children: [
                   Expanded(
-                    child: StatsCard(
-                      title: 'Active Time',
-                      value: _formatDuration(state.stats.activeMinutes),
-                      icon: Icons.timer_rounded,
-                      color: AppColors.purple,
+                    child: PremiumActiveTimeCard(
+                      minutes: state.stats.activeMinutes,
+                      animationDelay: 400,
                     ),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
-                    child: StatsCard(
-                      title: 'Fat Burned',
-                      value:
-                          '${state.stats.totalFatBurned.toStringAsFixed(1)} g',
-                      icon: Icons.speed_rounded,
-                      color: AppColors.primary,
+                    child: PremiumFatBurnedCard(
+                      fatGrams: state.stats.totalFatBurned,
+                      animationDelay: 450,
                     ),
                   ),
                 ],
               ),
-            ).animate().fadeIn(delay: 400.ms),
+            ),
           ),
           // AI Tip Section
           if (state.aiTip != null) ...[

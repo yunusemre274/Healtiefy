@@ -9,7 +9,7 @@ import 'spotify_api_service.dart';
 /// SpotifyApiService for API calls.
 class SpotifyService {
   final SpotifyAuthService _authService;
-  final SpotifyApiService _apiService;
+  late final SpotifyApiService _apiService;
 
   // Connection state tracking
   bool _isReallyConnected = false;
@@ -21,13 +21,11 @@ class SpotifyService {
       _playerStateController.stream;
 
   SpotifyService({
-    SpotifyAuthService? authService,
+    required SpotifyAuthService authService,
     SpotifyApiService? apiService,
-  })  : _authService = authService ?? SpotifyAuthService(),
-        _apiService = apiService ??
-            SpotifyApiService(
-              authService: authService ?? SpotifyAuthService(),
-            ) {
+  }) : _authService = authService {
+    _apiService = apiService ?? SpotifyApiService(authService: _authService);
+
     // Forward player state from API service
     _apiService.playerStateStream.listen((state) {
       _playerStateController.add(state);

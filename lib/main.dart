@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:app_links/app_links.dart';
 
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
@@ -16,6 +17,7 @@ import 'services/auth_service.dart';
 import 'services/location_service.dart';
 import 'services/health_service.dart';
 import 'services/spotify_service.dart';
+import 'services/spotify_auth_service.dart';
 import 'services/city_builder_service.dart';
 import 'services/ai_service.dart';
 import 'services/storage_service.dart';
@@ -54,10 +56,11 @@ void main() async {
   final storageService = StorageService();
   await storageService.init();
 
+  final spotifyAuthService = SpotifyAuthService();
   final authService = AuthService(storageService: storageService);
   final locationService = LocationService();
   final healthService = HealthService();
-  final spotifyService = SpotifyService();
+  final spotifyService = SpotifyService(authService: spotifyAuthService);
   final cityBuilderService = CityBuilderService(storageService: storageService);
   final aiService = AIService();
   final trackingService = TrackingService();
@@ -70,6 +73,7 @@ void main() async {
       locationService: locationService,
       healthService: healthService,
       spotifyService: spotifyService,
+      spotifyAuthService: spotifyAuthService,
       cityBuilderService: cityBuilderService,
       aiService: aiService,
       storageService: storageService,
@@ -80,11 +84,12 @@ void main() async {
   );
 }
 
-class HealtifyApp extends StatelessWidget {
+class HealtifyApp extends StatefulWidget {
   final AuthService authService;
   final LocationService locationService;
   final HealthService healthService;
   final SpotifyService spotifyService;
+  final SpotifyAuthService spotifyAuthService;
   final CityBuilderService cityBuilderService;
   final AIService aiService;
   final StorageService storageService;
@@ -98,6 +103,7 @@ class HealtifyApp extends StatelessWidget {
     required this.locationService,
     required this.healthService,
     required this.spotifyService,
+    required this.spotifyAuthService,
     required this.cityBuilderService,
     required this.aiService,
     required this.storageService,
@@ -107,53 +113,90 @@ class HealtifyApp extends StatelessWidget {
   });
 
   @override
+  State<HealtifyApp> createState() => _HealtifyAppState();
+}
+
+class _HealtifyAppState extends State<HealtifyApp> {
+  late AppLinks _appLinks;
+
+  @override
+  void initState() {
+    super.initState();
+    _initDeepLinks();
+  }
+
+  Future<void> _initDeepLinks() async {
+    _appLinks = AppLinks();
+
+    // Handle links that opened the app
+    final initialUri = await _appLinks.getInitialLink();
+    if (initialUri != null) {
+      _handleDeepLink(initialUri);
+    }
+
+    // Handle links while app is running
+    _appLinks.uriLinkStream.listen((uri) {
+      _handleDeepLink(uri);
+    });
+  }
+
+  void _handleDeepLink(Uri uri) {
+    // Handle Spotify OAuth callback
+    if (uri.scheme == 'healtiefy' && uri.host == 'callback') {
+      widget.spotifyAuthService.handleRedirectCallback(uri);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return MultiRepositoryProvider(
       providers: [
-        RepositoryProvider.value(value: authService),
-        RepositoryProvider.value(value: locationService),
-        RepositoryProvider.value(value: healthService),
-        RepositoryProvider.value(value: spotifyService),
-        RepositoryProvider.value(value: cityBuilderService),
-        RepositoryProvider.value(value: aiService),
-        RepositoryProvider.value(value: storageService),
-        RepositoryProvider.value(value: cacheManager),
-        RepositoryProvider.value(value: trackingService),
-        RepositoryProvider.value(value: farmService),
+        RepositoryProvider.value(value: widget.authService),
+        RepositoryProvider.value(value: widget.locationService),
+        RepositoryProvider.value(value: widget.healthService),
+        RepositoryProvider.value(value: widget.spotifyService),
+        RepositoryProvider.value(value: widget.spotifyAuthService),
+        RepositoryProvider.value(value: widget.cityBuilderService),
+        RepositoryProvider.value(value: widget.aiService),
+        RepositoryProvider.value(value: widget.storageService),
+        RepositoryProvider.value(value: widget.cacheManager),
+        RepositoryProvider.value(value: widget.trackingService),
+        RepositoryProvider.value(value: widget.farmService),
       ],
       child: MultiBlocProvider(
         providers: [
           BlocProvider(
-            create: (context) =>
-                AuthBloc(authService: authService)..add(AuthCheckRequested()),
+            create: (context) => AuthBloc(authService: widget.authService)
+              ..add(AuthCheckRequested()),
           ),
           BlocProvider(
             create: (context) => DashboardBloc(
-              healthService: healthService,
-              storageService: storageService,
-              aiService: aiService,
+              healthService: widget.healthService,
+              storageService: widget.storageService,
+              aiService: widget.aiService,
             ),
           ),
           BlocProvider(
             create: (context) => ProgressBloc(
-              storageService: storageService,
-              healthService: healthService,
+              storageService: widget.storageService,
+              healthService: widget.healthService,
             ),
           ),
           BlocProvider(
             create: (context) => MapBloc(
-              locationService: locationService,
-              cityBuilderService: cityBuilderService,
-              storageService: storageService,
+              locationService: widget.locationService,
+              cityBuilderService: widget.cityBuilderService,
+              storageService: widget.storageService,
             ),
           ),
           BlocProvider(
-            create: (context) => SpotifyBloc(spotifyService: spotifyService),
+            create: (context) =>
+                SpotifyBloc(spotifyService: widget.spotifyService),
           ),
           BlocProvider(
             create: (context) => AccountBloc(
-              authService: authService,
-              storageService: storageService,
+              authService: widget.authService,
+              storageService: widget.storageService,
             ),
           ),
         ],
