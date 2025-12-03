@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:firebase_core/firebase_core.dart';
 
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
@@ -18,9 +19,15 @@ import 'services/spotify_service.dart';
 import 'services/city_builder_service.dart';
 import 'services/ai_service.dart';
 import 'services/storage_service.dart';
+import 'services/local_cache_service.dart';
+import 'services/tracking_service.dart';
+import 'services/farm_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize Firebase
+  await Firebase.initializeApp();
 
   // Initialize Hive for local storage
   await Hive.initFlutter();
@@ -39,6 +46,10 @@ void main() async {
     ),
   );
 
+  // Initialize cache manager (Hive-based caching)
+  final cacheManager = CacheManager();
+  await cacheManager.init();
+
   // Initialize services
   final storageService = StorageService();
   await storageService.init();
@@ -49,6 +60,9 @@ void main() async {
   final spotifyService = SpotifyService();
   final cityBuilderService = CityBuilderService(storageService: storageService);
   final aiService = AIService();
+  final trackingService = TrackingService();
+  final farmService = FarmService();
+  await farmService.init();
 
   runApp(
     HealtifyApp(
@@ -59,6 +73,9 @@ void main() async {
       cityBuilderService: cityBuilderService,
       aiService: aiService,
       storageService: storageService,
+      cacheManager: cacheManager,
+      trackingService: trackingService,
+      farmService: farmService,
     ),
   );
 }
@@ -71,6 +88,9 @@ class HealtifyApp extends StatelessWidget {
   final CityBuilderService cityBuilderService;
   final AIService aiService;
   final StorageService storageService;
+  final CacheManager cacheManager;
+  final TrackingService trackingService;
+  final FarmService farmService;
 
   const HealtifyApp({
     super.key,
@@ -81,6 +101,9 @@ class HealtifyApp extends StatelessWidget {
     required this.cityBuilderService,
     required this.aiService,
     required this.storageService,
+    required this.cacheManager,
+    required this.trackingService,
+    required this.farmService,
   });
 
   @override
@@ -94,6 +117,9 @@ class HealtifyApp extends StatelessWidget {
         RepositoryProvider.value(value: cityBuilderService),
         RepositoryProvider.value(value: aiService),
         RepositoryProvider.value(value: storageService),
+        RepositoryProvider.value(value: cacheManager),
+        RepositoryProvider.value(value: trackingService),
+        RepositoryProvider.value(value: farmService),
       ],
       child: MultiBlocProvider(
         providers: [

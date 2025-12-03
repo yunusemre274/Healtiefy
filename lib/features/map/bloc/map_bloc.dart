@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:equatable/equatable.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:pedometer/pedometer.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../data/models/session_model.dart';
@@ -74,6 +76,15 @@ class MapSelectCityZone extends MapEvent {
   List<Object?> get props => [zoneId];
 }
 
+class MapStepCountUpdated extends MapEvent {
+  final int steps;
+
+  MapStepCountUpdated({required this.steps});
+
+  @override
+  List<Object?> get props => [steps];
+}
+
 // States
 enum TrackingStatus { idle, tracking, paused, saving }
 
@@ -92,6 +103,7 @@ class MapReady extends MapState {
   final TrackingStatus trackingStatus;
   final Duration trackingDuration;
   final double currentDistance;
+  final int currentSteps;
   final List<CityZone> cityZones;
   final CityZone? selectedZone;
   final Session? activeSession;
@@ -103,6 +115,7 @@ class MapReady extends MapState {
     this.trackingStatus = TrackingStatus.idle,
     this.trackingDuration = Duration.zero,
     this.currentDistance = 0,
+    this.currentSteps = 0,
     this.cityZones = const [],
     this.selectedZone,
     this.activeSession,
@@ -115,6 +128,7 @@ class MapReady extends MapState {
     TrackingStatus? trackingStatus,
     Duration? trackingDuration,
     double? currentDistance,
+    int? currentSteps,
     List<CityZone>? cityZones,
     CityZone? selectedZone,
     Session? activeSession,
@@ -126,6 +140,7 @@ class MapReady extends MapState {
       trackingStatus: trackingStatus ?? this.trackingStatus,
       trackingDuration: trackingDuration ?? this.trackingDuration,
       currentDistance: currentDistance ?? this.currentDistance,
+      currentSteps: currentSteps ?? this.currentSteps,
       cityZones: cityZones ?? this.cityZones,
       selectedZone: selectedZone ?? this.selectedZone,
       activeSession: activeSession ?? this.activeSession,
@@ -140,6 +155,7 @@ class MapReady extends MapState {
         trackingStatus,
         trackingDuration,
         currentDistance,
+        currentSteps,
         cityZones,
         selectedZone,
         activeSession,
@@ -164,8 +180,10 @@ class MapBloc extends Bloc<MapEvent, MapState> {
 
   StreamSubscription<Position>? _locationSubscription;
   StreamSubscription<List<LatLng>>? _trackingSubscription;
+  StreamSubscription<StepCount>? _stepCountSubscription;
   Timer? _durationTimer;
   DateTime? _trackingStartTime;
+  int _initialStepCount = 0;
 
   MapBloc({
     required this.locationService,
@@ -183,6 +201,20 @@ class MapBloc extends Bloc<MapEvent, MapState> {
     on<MapAddBuilding>(_onAddBuilding);
     on<MapLoadCityZones>(_onLoadCityZones);
     on<MapSelectCityZone>(_onSelectCityZone);
+    on<MapStepCountUpdated>(_onStepCountUpdated);
+  }
+
+  void _onStepCountUpdated(
+    MapStepCountUpdated event,
+    Emitter<MapState> emit,
+  ) {
+    final currentState = state;
+    if (currentState is! MapReady) return;
+    if (currentState.trackingStatus != TrackingStatus.tracking) return;
+
+    final sessionSteps = event.steps - _initialStepCount;
+    emit(currentState.copyWith(
+        currentSteps: sessionSteps > 0 ? sessionSteps : 0));
   }
 
   Future<void> _onInitRequested(
@@ -225,13 +257,35 @@ class MapBloc extends Bloc<MapEvent, MapState> {
       }
 
       _trackingStartTime = DateTime.now();
+      _initialStepCount = 0;
+
+      // Start pedometer for step counting
+      try {
+        _stepCountSubscription?.cancel();
+        _stepCountSubscription = Pedometer.stepCountStream.listen(
+          (StepCount stepCount) {
+            if (_initialStepCount == 0) {
+              _initialStepCount = stepCount.steps;
+            }
+            add(MapStepCountUpdated(steps: stepCount.steps));
+          },
+          onError: (error) {
+            // Pedometer not available, fallback to distance-based estimation
+            debugPrint('Pedometer error: $error');
+          },
+        );
+      } catch (e) {
+        debugPrint('Failed to initialize pedometer: $e');
+      }
 
       // Start duration timer
       _durationTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
         if (state is MapReady) {
           final ready = state as MapReady;
           if (ready.trackingStatus == TrackingStatus.tracking) {
-            add(MapLocationUpdated(position: locationService.lastPosition!));
+            if (locationService.lastPosition != null) {
+              add(MapLocationUpdated(position: locationService.lastPosition!));
+            }
           }
         }
       });
@@ -257,6 +311,7 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         trackingStatus: TrackingStatus.tracking,
         currentRoute: [],
         currentDistance: 0,
+        currentSteps: 0,
         trackingDuration: Duration.zero,
       ));
     } catch (e) {
@@ -274,8 +329,12 @@ class MapBloc extends Bloc<MapEvent, MapState> {
     _durationTimer?.cancel();
     await _locationSubscription?.cancel();
     await _trackingSubscription?.cancel();
+    await _stepCountSubscription?.cancel();
 
     final route = await locationService.stopTracking();
+
+    // Auto-save the session immediately
+    add(MapSaveSession());
 
     emit(currentState.copyWith(
       trackingStatus: TrackingStatus.saving,
@@ -292,6 +351,7 @@ class MapBloc extends Bloc<MapEvent, MapState> {
 
     locationService.pauseTracking();
     _durationTimer?.cancel();
+    await _stepCountSubscription?.cancel();
 
     emit(currentState.copyWith(trackingStatus: TrackingStatus.paused));
   }
@@ -331,11 +391,17 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         return;
       }
 
-      final durationMinutes = currentState.trackingDuration.inMinutes;
+      final durationMinutes = currentState.trackingDuration.inMinutes > 0
+          ? currentState.trackingDuration.inMinutes
+          : 1;
 
-      // Calculate session stats
-      final steps =
-          (currentState.currentDistance * 1312).round(); // ~1312 steps per km
+      // Use real step count from pedometer, fallback to distance estimation
+      final steps = currentState.currentSteps > 0
+          ? currentState.currentSteps
+          : (currentState.currentDistance * 1312)
+              .round(); // ~1312 steps per km fallback
+
+      // Calculate calories based on steps (approx 0.04 kcal per step)
       final calories = steps * 0.04;
       final fatBurned = calories * 0.00013 * 1000;
       final avgHeartRate = currentState.heartRateReadings.isNotEmpty
@@ -378,6 +444,7 @@ class MapBloc extends Bloc<MapEvent, MapState> {
         trackingStatus: TrackingStatus.idle,
         currentRoute: [],
         currentDistance: 0,
+        currentSteps: 0,
         trackingDuration: Duration.zero,
         cityZones: updatedZones,
         selectedZone: newZone,
@@ -494,6 +561,7 @@ class MapBloc extends Bloc<MapEvent, MapState> {
     _durationTimer?.cancel();
     _locationSubscription?.cancel();
     _trackingSubscription?.cancel();
+    _stepCountSubscription?.cancel();
     return super.close();
   }
 }

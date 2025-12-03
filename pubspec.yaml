@@ -37,7 +37,7 @@ dependencies:
   firebase_auth: ^5.3.4
   cloud_firestore: ^5.6.3
   google_sign_in: ^6.2.1
-  sign_in_with_apple: ^5.0.0
+  sign_in_with_apple: ^6.0.0
   
   # Location & Maps
   geolocator: ^10.1.0
@@ -46,10 +46,10 @@ dependencies:
   
   # Health & Fitness
   pedometer: ^4.0.1
-  health: ^8.1.0
+  # health: ^8.1.0  # Temporarily disabled due to AGP compatibility
   
   # Spotify OAuth
-  flutter_web_auth_2: ^3.1.1
+  flutter_web_auth_2: ^4.0.0
   http: ^1.1.2
   crypto: ^3.0.3
   

@@ -132,11 +132,6 @@ class SpotifyBloc extends Bloc<SpotifyEvent, SpotifyState> {
     on<SpotifySkipPrevious>(_onSkipPrevious);
     on<SpotifySeekTo>(_onSeekTo);
     on<SpotifyPlayerStateUpdated>(_onPlayerStateUpdated);
-
-    // Check initial connection state - dispatch event instead of emitting directly
-    if (!spotifyService.isConnected) {
-      add(SpotifyDisconnectRequested());
-    }
   }
 
   Future<void> _onConnectRequested(
@@ -174,16 +169,32 @@ class SpotifyBloc extends Bloc<SpotifyEvent, SpotifyState> {
     SpotifyLoadPlaylists event,
     Emitter<SpotifyState> emit,
   ) async {
+    // Check if connected first
+    if (!spotifyService.isConnected) {
+      emit(SpotifyDisconnected());
+      return;
+    }
+
+    emit(SpotifyLoading());
+
     try {
       final playlists = await spotifyService.getPlaylists();
       final playerState = await spotifyService.getPlayerState();
 
-      emit(SpotifyConnected(
-        playlists: playlists,
-        playerState: playerState ?? const SpotifyPlayerState(),
-      ));
+      if (playlists.isEmpty) {
+        // If no playlists, might be disconnected
+        emit(SpotifyConnected(
+          playlists: [],
+          playerState: playerState ?? const SpotifyPlayerState(),
+        ));
+      } else {
+        emit(SpotifyConnected(
+          playlists: playlists,
+          playerState: playerState ?? const SpotifyPlayerState(),
+        ));
+      }
     } catch (e) {
-      emit(SpotifyError(message: 'Failed to load playlists'));
+      emit(SpotifyError(message: 'Failed to load playlists: ${e.toString()}'));
       emit(SpotifyDisconnected());
     }
   }

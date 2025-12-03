@@ -81,10 +81,10 @@ class _MapScreenState extends State<MapScreen> with TickerProviderStateMixin {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      // City button
+                      // Farm button
                       SoftIconButton(
-                        icon: Icons.location_city_rounded,
-                        onPressed: () => context.go('/map/city-builder'),
+                        icon: Icons.agriculture_rounded,
+                        onPressed: () => context.go('/map/farm'),
                       ).animate().fadeIn().slideX(begin: -0.5),
                       // Recenter button
                       SoftIconButton(
@@ -209,7 +209,8 @@ class _TrackingStatsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final steps = (state.currentDistance * 1312).round();
+    // Use real step count from pedometer
+    final steps = state.currentSteps;
 
     return SoftCard(
       padding: const EdgeInsets.all(16),

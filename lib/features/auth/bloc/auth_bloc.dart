@@ -86,6 +86,9 @@ class AuthResetPasswordRequested extends AuthEvent {
   List<Object?> get props => [email];
 }
 
+/// Developer test user sign-in event (bypasses Firebase)
+class AuthTestUserSignInRequested extends AuthEvent {}
+
 // States
 abstract class AuthState extends Equatable {
   @override
@@ -132,6 +135,7 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
     on<AuthProfileUpdateRequested>(_onProfileUpdateRequested);
     on<AuthLogoutRequested>(_onLogoutRequested);
     on<AuthResetPasswordRequested>(_onResetPasswordRequested);
+    on<AuthTestUserSignInRequested>(_onTestUserSignInRequested);
   }
 
   Future<void> _onCheckRequested(
@@ -220,8 +224,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         user: user,
         isProfileComplete: authService.isProfileComplete(),
       ));
+    } on AuthException catch (e) {
+      emit(AuthError(message: e.message));
+      emit(AuthUnauthenticated());
     } catch (e) {
-      emit(AuthError(message: 'Google sign in failed'));
+      emit(AuthError(message: 'Google sign-in failed: ${e.toString()}'));
       emit(AuthUnauthenticated());
     }
   }
@@ -239,8 +246,11 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
         user: user,
         isProfileComplete: authService.isProfileComplete(),
       ));
+    } on AuthException catch (e) {
+      emit(AuthError(message: e.message));
+      emit(AuthUnauthenticated());
     } catch (e) {
-      emit(AuthError(message: 'Apple sign in failed'));
+      emit(AuthError(message: 'Apple sign-in failed: ${e.toString()}'));
       emit(AuthUnauthenticated());
     }
   }
@@ -301,6 +311,25 @@ class AuthBloc extends Bloc<AuthEvent, AuthState> {
       emit(AuthPasswordResetSent());
     } catch (e) {
       emit(AuthError(message: 'Failed to send reset email'));
+    }
+  }
+
+  /// Sign in as developer test user (bypasses Firebase)
+  Future<void> _onTestUserSignInRequested(
+    AuthTestUserSignInRequested event,
+    Emitter<AuthState> emit,
+  ) async {
+    emit(AuthLoading());
+
+    try {
+      final user = await authService.signInAsTestUser();
+      emit(AuthAuthenticated(
+        user: user,
+        isProfileComplete: true, // Test user has complete profile
+      ));
+    } catch (e) {
+      emit(AuthError(message: 'Test user sign-in failed: ${e.toString()}'));
+      emit(AuthUnauthenticated());
     }
   }
 }

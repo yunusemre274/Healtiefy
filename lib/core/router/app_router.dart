@@ -10,7 +10,7 @@ import '../../features/dashboard/screens/dashboard_screen.dart';
 import '../../features/progress/screens/progress_screen.dart';
 import '../../features/progress/screens/session_detail_screen.dart';
 import '../../features/map/screens/map_screen.dart';
-import '../../features/map/screens/city_builder_screen.dart';
+import '../../features/farm/screens/farm_screen.dart';
 import '../../features/spotify/screens/spotify_screen.dart';
 import '../../features/account/screens/account_screen.dart';
 import '../../features/account/screens/edit_profile_screen.dart';
@@ -24,6 +24,32 @@ class AppRouter {
   static final router = GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/splash',
+    // Handle deep links - ignore Spotify OAuth callback (handled by flutter_web_auth_2)
+    redirect: (context, state) {
+      final uri = state.uri;
+
+      // Spotify OAuth callback - let flutter_web_auth_2 handle this
+      // Return current location to prevent navigation error
+      if (uri.scheme == 'healtiefy' && uri.host == 'callback') {
+        return null; // Don't redirect, let the system handle it
+      }
+
+      return null;
+    },
+    // Error handler for unknown routes
+    errorBuilder: (context, state) {
+      // For deep link callbacks, just show current screen
+      if (state.uri.toString().contains('callback')) {
+        return const Scaffold(
+          body: Center(child: CircularProgressIndicator()),
+        );
+      }
+      return Scaffold(
+        body: Center(
+          child: Text('Page not found: ${state.uri}'),
+        ),
+      );
+    },
     routes: [
       // Splash Screen
       GoRoute(
@@ -98,10 +124,10 @@ class AppRouter {
             ),
             routes: [
               GoRoute(
-                path: 'city',
-                name: 'cityBuilder',
+                path: 'farm',
+                name: 'farm',
                 parentNavigatorKey: _rootNavigatorKey,
-                builder: (context, state) => const CityBuilderScreen(),
+                builder: (context, state) => const FarmScreen(),
               ),
             ],
           ),
@@ -130,9 +156,5 @@ class AppRouter {
         ],
       ),
     ],
-    redirect: (context, state) {
-      // We'll handle auth redirects in the actual screens
-      return null;
-    },
   );
 }

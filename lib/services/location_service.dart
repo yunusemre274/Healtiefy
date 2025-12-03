@@ -22,12 +22,12 @@ class LocationService {
   Position? _lastPosition;
   Position? get lastPosition => _lastPosition;
 
-  // Check if location services are enabled
+
   Future<bool> isLocationServiceEnabled() async {
     return await Geolocator.isLocationServiceEnabled();
   }
 
-  // Check location permission status
+
   Future<LocationPermission> checkPermission() async {
     return await Geolocator.checkPermission();
   }

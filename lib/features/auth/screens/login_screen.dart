@@ -247,6 +247,53 @@ class _LoginScreenState extends State<LoginScreen> {
                       ],
                     ),
                   ).animate().fadeIn(delay: 900.ms),
+                  // Hidden developer test user button (long press to activate)
+                  const SizedBox(height: 16),
+                  Center(
+                    child: GestureDetector(
+                      onLongPress: () {
+                        // Show confirmation dialog
+                        showDialog(
+                          context: context,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Developer Mode'),
+                            content: const Text(
+                              'Sign in as test user?\n\n'
+                              'This bypasses Firebase authentication for testing purposes.',
+                            ),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx),
+                                child: const Text('Cancel'),
+                              ),
+                              TextButton(
+                                onPressed: () {
+                                  Navigator.pop(ctx);
+                                  context.read<AuthBloc>().add(
+                                        AuthTestUserSignInRequested(),
+                                      );
+                                },
+                                child: Text(
+                                  'Sign In as Test User',
+                                  style: TextStyle(color: AppColors.primary),
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                      child: Container(
+                        padding: const EdgeInsets.all(12),
+                        child: Text(
+                          'v1.0.0',
+                          style: TextStyle(
+                            color: AppColors.textSecondary.withOpacity(0.5),
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
                 ],
               ),
             ),

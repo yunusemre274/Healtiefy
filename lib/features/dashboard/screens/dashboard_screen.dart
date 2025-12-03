@@ -569,10 +569,10 @@ class _QuickActionsSection extends StatelessWidget {
             const SizedBox(width: 12),
             Expanded(
               child: _QuickActionCard(
-                icon: Icons.location_city_rounded,
-                label: 'My City',
+                icon: Icons.agriculture_rounded,
+                label: 'My Farm',
                 color: AppColors.accent,
-                onTap: () => context.go('/map/city'),
+                onTap: () => context.go('/map/farm'),
               ),
             ),
             const SizedBox(width: 12),
