@@ -155,16 +155,31 @@ class SpotifyAuthService {
 
   /// Handle the redirect callback from Spotify deep link
   /// This should be called from your app's deep link handler
+  /// Expected URI format: healtiefy://callback/?code=XXXX or healtiefy://callback/?error=XXXX
   Future<SpotifyAuthResult> handleRedirectCallback(Uri uri) async {
     try {
-      print('[SpotifyAuth] Handling redirect callback: $uri');
+      print('════════════════════════════════════════════════════════════');
+      print('[SpotifyAuth] Handling redirect callback');
+      print('[SpotifyAuth] URI: $uri');
+      print('════════════════════════════════════════════════════════════');
 
-      // Check for errors from Spotify
+      // Check for user cancellation
       final error = uri.queryParameters['error'];
       if (error != null) {
         final errorDescription =
             uri.queryParameters['error_description'] ?? error;
-        print('[SpotifyAuth] Spotify returned error: $errorDescription');
+
+        // Handle user cancellation specifically
+        if (error == 'access_denied') {
+          print('[SpotifyAuth] ✗ User cancelled authorization');
+          final result =
+              SpotifyAuthResult.failure('Authorization cancelled by user');
+          _authCompleter?.complete(result);
+          _authCompleter = null;
+          return result;
+        }
+
+        print('[SpotifyAuth] ✗ Spotify returned error: $errorDescription');
         final result = SpotifyAuthResult.failure(
             'Spotify authorization error: $errorDescription');
         _authCompleter?.complete(result);
@@ -174,17 +189,20 @@ class SpotifyAuthService {
 
       // Get the authorization code
       final code = uri.queryParameters['code'];
-      if (code == null) {
-        print('[SpotifyAuth] No authorization code in callback');
+      if (code == null || code.isEmpty) {
+        print('[SpotifyAuth] ✗ No authorization code in callback');
+        print(
+            '[SpotifyAuth] Query parameters received: ${uri.queryParameters}');
         final result = SpotifyAuthResult.failure(
-            'No authorization code received from Spotify');
+            'No authorization code received from Spotify. Check redirect URI configuration.');
         _authCompleter?.complete(result);
         _authCompleter = null;
         return result;
       }
 
       print(
-          '[SpotifyAuth] Received authorization code, exchanging for tokens...');
+          '[SpotifyAuth] ✓ Authorization code received (${code.length} chars)');
+      print('[SpotifyAuth] Token exchange starting...');
 
       // Exchange the code for tokens
       final result = await exchangeCodeForToken(code);
@@ -245,7 +263,12 @@ class SpotifyAuthService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         await _saveTokens(data);
-        print('[SpotifyAuth] Tokens saved successfully');
+        print('════════════════════════════════════════════════════════════');
+        print('[SpotifyAuth] ✓ Token exchange success!');
+        print('[SpotifyAuth] ✓ Access token received');
+        print('[SpotifyAuth] ✓ Refresh token received');
+        print('[SpotifyAuth] ✓ Tokens saved to secure storage');
+        print('════════════════════════════════════════════════════════════');
         return SpotifyAuthResult.success(
           accessToken: _accessToken!,
           refreshToken: _refreshToken,

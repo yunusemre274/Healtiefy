@@ -169,20 +169,43 @@ class _HealtifyAppState extends State<HealtifyApp> {
   }
 
   void _handleDeepLink(Uri uri) {
-    print(
-        '[DeepLink] Handling: scheme=${uri.scheme}, host=${uri.host}, path=${uri.path}');
-    print('[DeepLink] Query params: ${uri.queryParameters}');
-    print('[DeepLink] Full URI: $uri');
+    print('');
+    print('╔══════════════════════════════════════════════════════════════╗');
+    print('║           SPOTIFY REDIRECT RECEIVED                         ║');
+    print('╠══════════════════════════════════════════════════════════════╣');
+    print('║ Spotify redirect received: $uri');
+    print('║ Scheme: ${uri.scheme}');
+    print('║ Host: ${uri.host}');
+    print('║ Path: "${uri.path}"');
+    print('║ Query: ${uri.queryParameters}');
+    print('╚══════════════════════════════════════════════════════════════╝');
+    print('');
 
     // Handle Spotify OAuth callback - check for various path patterns
+    // Matches: healtiefy://callback/, healtiefy://callback, healtiefy://callback/?code=...
     if (uri.scheme == 'healtiefy' && uri.host == 'callback') {
-      print('[DeepLink] Spotify callback detected, forwarding to auth service');
+      // Check for authorization code
+      final code = uri.queryParameters['code'];
+      if (code != null) {
+        print('[DeepLink] ✓ Authorization code: ${code.substring(0, 20)}...');
+      }
+
+      // Check for error from Spotify
+      final error = uri.queryParameters['error'];
+      if (error != null) {
+        print('[DeepLink] ✗ Spotify error: $error');
+        print(
+            '[DeepLink] Error description: ${uri.queryParameters['error_description']}');
+      }
+
+      print('[DeepLink] Forwarding to SpotifyAuthService...');
       widget.spotifyAuthService.handleRedirectCallback(uri);
     } else if (uri.scheme == 'healtiefy' &&
         uri.queryParameters.containsKey('code')) {
       // Fallback: Handle if code is in query params regardless of host
+      print('[DeepLink] Spotify callback with code detected (fallback)');
       print(
-          '[DeepLink] Spotify callback with code detected (fallback), forwarding to auth service');
+          '[DeepLink] ✓ Authorization code: ${uri.queryParameters['code']!.substring(0, 20)}...');
       widget.spotifyAuthService.handleRedirectCallback(uri);
     } else {
       print('[DeepLink] Unknown deep link, ignoring');

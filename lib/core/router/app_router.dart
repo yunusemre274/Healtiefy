@@ -24,31 +24,38 @@ class AppRouter {
   static final router = GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: '/splash',
-    // Handle deep links - ignore Spotify OAuth callback (handled by flutter_web_auth_2)
+    // Handle deep links - redirect Spotify OAuth callback to appropriate screen
     redirect: (context, state) {
-      final uri = state.uri;
+      final path = state.uri.path;
+      final fullUri = state.uri.toString();
 
-      // Spotify OAuth callback - let flutter_web_auth_2 handle this
-      // Return current location to prevent navigation error
-      if (uri.scheme == 'healtiefy' && uri.host == 'callback') {
-        return null; // Don't redirect, let the system handle it
+      // Debug log
+      debugPrint('[GoRouter] Redirect check - path: $path, fullUri: $fullUri');
+
+      // Spotify OAuth callback - redirect to spotify screen
+      // The deep link handler in main.dart handles the token exchange
+      // We just need to make sure the user ends up on the spotify screen
+      if (path == '/callback' ||
+          path == '/callback/' ||
+          fullUri.contains('healtiefy://callback') ||
+          fullUri.contains('callback?code=') ||
+          fullUri.contains('callback/?code=')) {
+        debugPrint(
+            '[GoRouter] Spotify callback detected, redirecting to /spotify');
+        return '/spotify';
       }
 
       return null;
     },
     // Error handler for unknown routes
     errorBuilder: (context, state) {
-      // For deep link callbacks, just show current screen
-      if (state.uri.toString().contains('callback')) {
-        return const Scaffold(
-          body: Center(child: CircularProgressIndicator()),
-        );
+      debugPrint('[GoRouter] Error - unknown route: ${state.uri}');
+      // For any callback-related URLs, show loading and navigate after
+      final uri = state.uri.toString();
+      if (uri.contains('callback')) {
+        return const _CallbackLoadingScreen();
       }
-      return Scaffold(
-        body: Center(
-          child: Text('Page not found: ${state.uri}'),
-        ),
-      );
+      return _ErrorScreen(uri: state.uri.toString());
     },
     routes: [
       // Splash Screen
@@ -157,4 +164,74 @@ class AppRouter {
       ),
     ],
   );
+}
+
+/// Loading screen shown during OAuth callback processing
+class _CallbackLoadingScreen extends StatefulWidget {
+  const _CallbackLoadingScreen();
+
+  @override
+  State<_CallbackLoadingScreen> createState() => _CallbackLoadingScreenState();
+}
+
+class _CallbackLoadingScreenState extends State<_CallbackLoadingScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Navigate to spotify screen after a brief delay
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) {
+        AppRouter.router.go('/spotify');
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return const Scaffold(
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            CircularProgressIndicator(),
+            SizedBox(height: 16),
+            Text('Connecting to Spotify...'),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Error screen with navigation back to dashboard
+class _ErrorScreen extends StatelessWidget {
+  final String uri;
+
+  const _ErrorScreen({required this.uri});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Error'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => AppRouter.router.go('/dashboard'),
+        ),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text('Page not found: $uri'),
+            const SizedBox(height: 16),
+            ElevatedButton(
+              onPressed: () => AppRouter.router.go('/dashboard'),
+              child: const Text('Go to Dashboard'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

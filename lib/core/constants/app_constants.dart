@@ -7,8 +7,11 @@ class AppConstants {
   static const String baseUrl = 'https://api.healtiefy.com';
 
   // Spotify OAuth Configuration
+  // IMPORTANT: This redirect URI MUST match EXACTLY what's in Spotify Dashboard
+  // Spotify Dashboard URL: https://developer.spotify.com/dashboard
+  // Set Redirect URI to: healtiefy://callback/
   static const String spotifyClientId = 'b2dbc08c99984f2cbd7405bfba25133a';
-  static const String spotifyRedirectUri = 'healtiefy://callback';
+  static const String spotifyRedirectUri = 'healtiefy://callback/';
   static const String spotifyAuthUrl = 'https://accounts.spotify.com/authorize';
   static const String spotifyTokenUrl =
       'https://accounts.spotify.com/api/token';
