@@ -1,21 +1,21 @@
+import '../config/env_config.dart';
+
 class AppConstants {
   // App Info
   static const String appName = 'Healtiefy';
   static const String appVersion = '1.0.0';
 
-  // API Endpoints
-  static const String baseUrl = 'https://api.healtiefy.com';
+  // API Endpoints - loaded from environment
+  static String get baseUrl => EnvConfig.apiBaseUrl;
 
-  // Spotify OAuth Configuration
-  // IMPORTANT: This redirect URI MUST match EXACTLY what's in Spotify Dashboard
+  // Spotify OAuth Configuration - loaded from environment
+  // IMPORTANT: These values are loaded from .env file
   // Spotify Dashboard URL: https://developer.spotify.com/dashboard
-  // Set Redirect URI to: healtiefy://callback/
-  static const String spotifyClientId = 'b2dbc08c99984f2cbd7405bfba25133a';
-  static const String spotifyRedirectUri = 'healtiefy://callback/';
-  static const String spotifyAuthUrl = 'https://accounts.spotify.com/authorize';
-  static const String spotifyTokenUrl =
-      'https://accounts.spotify.com/api/token';
-  static const String spotifyApiBaseUrl = 'https://api.spotify.com/v1';
+  static String get spotifyClientId => EnvConfig.spotifyClientId;
+  static String get spotifyRedirectUri => EnvConfig.spotifyRedirectUri;
+  static String get spotifyAuthUrl => EnvConfig.spotifyAuthUrl;
+  static String get spotifyTokenUrl => EnvConfig.spotifyTokenUrl;
+  static String get spotifyApiBaseUrl => EnvConfig.spotifyApiBaseUrl;
   static const List<String> spotifyScopes = [
     'playlist-read-private',
     'user-read-email',
@@ -25,9 +25,8 @@ class AppConstants {
     'user-read-currently-playing',
   ];
 
-  // Google Maps API Key
-  static const String googleMapsApiKey =
-      'AIzaSyB8WiIWZAhGHfN1WguWqFcbhtqOUQDshcQ';
+  // Google Maps API Key - loaded from environment
+  static String get googleMapsApiKey => EnvConfig.googleMapsApiKey;
 
   // Firebase Collections
   static const String usersCollection = 'users';

@@ -29,8 +29,8 @@ healtiefy://callback/
 5. Click **Save**
 
 ### Current App Configuration
-- **Client ID**: `b2dbc08c99984f2cbd7405bfba25133a`
-- **Redirect URI**: `healtiefy://callback/`
+- **Client ID**: Loaded from `.env` file (`SPOTIFY_CLIENT_ID`)
+- **Redirect URI**: `healtiefy://callback/` (from `.env` file)
 - **Auth Method**: PKCE (Proof Key for Code Exchange) - No client secret needed
 
 ---
@@ -56,8 +56,19 @@ Location: `android/app/src/main/AndroidManifest.xml`
 Location: `lib/core/constants/app_constants.dart`
 
 ```dart
-static const String spotifyRedirectUri = 'healtiefy://callback/';
+// Values are now loaded from environment variables (.env file)
+static String get spotifyRedirectUri => EnvConfig.spotifyRedirectUri;
 ```
+
+### Environment Configuration
+Location: `.env` file (root of project)
+
+```env
+SPOTIFY_CLIENT_ID=your_client_id_here
+SPOTIFY_REDIRECT_URI=healtiefy://callback/
+```
+
+**⚠️ Important:** The `.env` file is NOT committed to version control. Copy `.env.example` to `.env` and fill in your values.
 
 ### 3. Deep Link Handler
 Location: `lib/main.dart`

@@ -8,6 +8,7 @@ import 'package:app_links/app_links.dart';
 
 import 'core/theme/app_theme.dart';
 import 'core/router/app_router.dart';
+import 'core/config/env_config.dart';
 import 'features/auth/bloc/auth_bloc.dart';
 import 'features/dashboard/bloc/dashboard_bloc.dart';
 import 'features/progress/bloc/progress_bloc.dart';
@@ -30,6 +31,16 @@ import 'services/water_tracking_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Initialize environment configuration (load .env file)
+  await EnvConfig.init();
+
+  // Validate environment configuration
+  if (!EnvConfig.isConfigured) {
+    debugPrint(
+        '⚠️ WARNING: Missing environment variables: ${EnvConfig.missingVariables}');
+    debugPrint('⚠️ Please check your .env file');
+  }
 
   // Initialize Firebase
   await Firebase.initializeApp();

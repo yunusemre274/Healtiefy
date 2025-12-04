@@ -1,9 +1,19 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("kotlin-android")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
     id("com.google.gms.google-services")
+}
+
+// Load secrets from secrets.properties
+val secretsFile = rootProject.file("secrets.properties")
+val secrets = Properties()
+if (secretsFile.exists()) {
+    secrets.load(FileInputStream(secretsFile))
 }
 
 android {
@@ -32,6 +42,17 @@ android {
         
         // Enable multidex for large number of dependencies
         multiDexEnabled = true
+
+        // Load API keys from secrets.properties into BuildConfig
+        buildConfigField("String", "GOOGLE_MAPS_API_KEY", "\"${secrets.getProperty("GOOGLE_MAPS_API_KEY", "")}\"")
+        buildConfigField("String", "SPOTIFY_CLIENT_ID", "\"${secrets.getProperty("SPOTIFY_CLIENT_ID", "")}\"")
+        
+        // Also make Google Maps key available as manifest placeholder
+        manifestPlaceholders["GOOGLE_MAPS_API_KEY"] = secrets.getProperty("GOOGLE_MAPS_API_KEY", "")
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     buildTypes {

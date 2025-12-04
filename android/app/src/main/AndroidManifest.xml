@@ -25,10 +25,10 @@
         android:icon="@mipmap/ic_launcher"
         android:usesCleartextTraffic="true">
         
-        <!-- Google Maps API Key -->
+        <!-- Google Maps API Key - loaded from secrets.properties via manifest placeholder -->
         <meta-data
             android:name="com.google.android.geo.API_KEY"
-            android:value="AIzaSyB8WiIWZAhGHfN1WguWqFcbhtqOUQDshcQ"/>
+            android:value="${GOOGLE_MAPS_API_KEY}"/>
         
         <activity
             android:name=".MainActivity"
